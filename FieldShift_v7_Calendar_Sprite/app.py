@@ -19,7 +19,11 @@ from gemini_client import generate_gemini_reply, DEFAULT_GEMINI_MODEL
 ROOT=Path(__file__).resolve().parent
 load_dotenv(ROOT/'.env',override=False)
 app=FastAPI(title='FieldShift — Vercel preview', docs_url=None, redoc_url=None)
-app.mount('/static',StaticFiles(directory=str(ROOT/'public'/'static')),name='static')
+# In Vercel, files under public/ are served by the platform and aren't packaged
+# inside the Python function. Only mount locally when the directory exists.
+static_dir = ROOT / 'public' / 'static'
+if static_dir.is_dir():
+    app.mount('/static', StaticFiles(directory=str(static_dir)), name='static')
 DEFAULT_LOCATION={'mode':'coords','label':'Demo — New York City','latitude':40.7128,'longitude':-74.006,'resolution':'sample coordinates'}
 DEFAULT_PLAN={'total_area':5,'area_unit':'acres','notes':'','crops':[{'name':'Tomato','area':1.5,'stage':'Planning','planted_on':'','variety':''},{'name':'Corn','area':2,'stage':'Planning','planted_on':'','variety':''}]}
 
