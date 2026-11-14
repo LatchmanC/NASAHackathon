@@ -10,7 +10,7 @@ import os
 DEFAULT_GEMINI_MODEL = os.getenv("FIELDSHIFT_GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 
-def generate_gemini_reply(api_key: str, prompt: str, model: str | None = None) -> str:
+def generate_gemini_reply(api_key: str, prompt: str, model: str | None = None, *, json_mode: bool = False) -> str:
     key = (api_key or "").strip()
     if not key:
         raise ValueError("Enter your Gemini API key or set GEMINI_API_KEY before requesting advice.")
@@ -38,7 +38,7 @@ def generate_gemini_reply(api_key: str, prompt: str, model: str | None = None) -
         answer = client.models.generate_content(
             model=model_name,
             contents=prompt,
-            config=types.GenerateContentConfig(max_output_tokens=1600),
+            config=types.GenerateContentConfig(max_output_tokens=1600, **({'response_mime_type':'application/json'} if json_mode else {})),
         )
         text = (answer.text or "").strip()
         if not text:

@@ -17,7 +17,7 @@
       <button class="navitem" data-tab="live"><span class="navicon">▦</span>Live Sensor Data</button>
       <button class="navitem" data-tab="nasa"><span class="navicon">◉</span>NASA POWER Daily</button>
     </nav>
-    <div class="sidebar-bottom"><div class="sidebar-pi"><span class="statusdot"></span><div><strong>Field Station</strong><small id="side-status">Connecting...</small></div></div><p>ESP32 → SQL Cloud</p><span class="small-muted">3-tab field dashboard</span></div>
+    <div class="sidebar-bottom"><div class="account-box" id="account-box" aria-live="polite">Loading account…</div><div class="sidebar-pi"><span class="statusdot"></span><div><strong>Field Station</strong><small id="side-status">Connecting...</small></div></div><p>ESP32 → SQL Cloud</p><span class="small-muted">3-tab field dashboard</span></div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -25,7 +25,7 @@
       <div class="location-line"><span class="pin">⌖</span> <span id="location-label">Loading location...</span></div>
       <div class="top-actions"><button class="refresh-btn" id="refresh-button">↻ Refresh</button></div>
     </header>
-    <div class="page">
+    <div class="page"><div class="preview-banner">VERCEL PREVIEW · Farm plan and calendar are saved in this browser only. ESP32 and TigerData are not connected yet.</div>
       <section class="panel-tab" id="tab-crops">
         <div class="heading-row"><div><div class="eyebrow">FARM SETUP + GEMINI</div><h1>Crop Management</h1><p class="subtitle">Tell FieldShift where your land is, how much area you have, and which crops you're growing.</p></div><span class="data-badge">Farming advisor</span></div>
         <section class="card section-gap location-inline"><div class="card-heading"><div><h2>Farm location</h2><p class="muted">Used for NASA records, forecasts, and crop planning.</p></div><strong id="location-current">Not selected</strong></div>
@@ -51,9 +51,9 @@
               <div class="speech-bubble" id="advice-output" role="status" aria-live="polite"><strong>Hi, farmer! 🌱</strong><p>Tell me about your crops and I'll help you plan your next steps using available field and NASA data.</p></div>
             </div>
             <label for="farm-question">What would you like Fieldy to help with?</label>
-            <textarea id="farm-question" rows="3">For every crop, suggest conditions to watch before planting, potential harvest timing, evidence-based growth progress if possible, and priorities over the next week.</textarea>
+            <textarea id="farm-question" rows="3">What should I do next for my crops, and what weather should I watch this week?</textarea>
             <button class="primary-btn fullwidth" id="ask-gemini">✦ Ask Fieldy for advice</button>
-            <div class="advisor-meta" id="advisor-key-status">Gemini key: checking server settings…</div>
+            <div class="advisor-meta" id="advisor-key-status">Checking Gemini configuration…</div>
             <p class="footnote">Fieldy uses Gemini 3.5 Flash-Lite on the Python backend. Advice is conditional, not a verified yield or severe-weather forecast.</p>
           </section></div>
         <section class="card crop-calendar section-gap" aria-label="Farm calendar">
@@ -75,22 +75,22 @@
                 <label for="event-note">Notes (optional)</label><input id="event-note" maxlength="240" placeholder="e.g. Check soil before watering">
                 <button type="submit" class="primary-btn">+ Save task</button>
               </form>
-              <p class="footnote">Calendar tasks are saved to this demo's local database folder. Cloud calendar synchronization is not implemented yet.</p>
+              <p class="footnote">Calendar tasks are saved in this browser for the preview. They are not yet synced to TigerData.</p>
             </div>
           </div>
         </section>
       </section>
       <section class="panel-tab hidden" id="tab-live">
-        <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Current field conditions. When the sensor station is offline, the latest cloud reading is shown with its timestamp.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
+        <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Live ESP32 sensor data will appear here after we connect the device and TigerData.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
         <div class="sync-note" id="sync-message">Checking sensor station and cloud connection…</div>
         <div class="metric-grid" id="live-metrics"><div class="empty-card">Loading readings…</div></div>
-        <div class="card section-gap"><div class="card-heading"><div><h2>Data storage</h2><p class="muted">Readings are buffered locally, then copied to the SQL cloud receiver.</p></div><span class="data-badge">Cloud history</span></div>
+        <div class="card section-gap"><div class="card-heading"><div><h2>Data storage</h2><p class="muted">Sensor upload and TigerData are not yet connected in this hosted preview.</p></div><span class="data-badge">Cloud history</span></div>
           <div class="stats-row compact-stats"><div class="stat-card"><span>Storage</span><strong id="storage-type">Checking</strong></div><div class="stat-card"><span>Cloud records</span><strong id="stored-count">—</strong></div><div class="stat-card"><span>Last cloud sync</span><strong id="last-cloud-sync">—</strong></div></div>
           <details id="history-details"><summary>View recently synced readings</summary><div class="table-scroll"><table id="history-table"><thead><tr><th>Recorded UTC</th><th>Temp °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Soil %</th><th>Rain wetness %</th><th>Light %</th><th>Gas index</th><th>Altitude m</th></tr></thead><tbody><tr><td colspan="9">Loading cloud readings…</td></tr></tbody></table></div><button class="secondary-btn" id="export-csv">Export displayed records as CSV</button><p class="footnote" id="history-note"></p></details>
         </div>
       </section>
       <section class="panel-tab hidden" id="tab-nasa">
-        <div class="heading-row"><div><div class="eyebrow">REGIONAL ENVIRONMENTAL HISTORY</div><h1>NASA POWER Daily</h1><p class="subtitle">Daily regional weather and solar observations for the selected farm. The data is cached and can be refreshed once daily.</p></div><div class="heading-actions"><button class="secondary-btn" id="change-nasa-location">Change location</button><button class="primary-btn" id="fetch-nasa">Download latest NASA data</button></div></div>
+        <div class="heading-row"><div><div class="eyebrow">REGIONAL ENVIRONMENTAL HISTORY</div><h1>NASA POWER Daily</h1><p class="subtitle">Daily regional weather and solar observations for the selected farm. Historical regional data can be downloaded and saved in this browser.</p></div><div class="heading-actions"><button class="secondary-btn" id="change-nasa-location">Change location</button><button class="primary-btn" id="fetch-nasa">Download latest NASA data</button></div></div>
         <div class="info-strip" id="nasa-source">Checking the NASA POWER cache…</div>
         <div class="metric-grid nasa-cards" id="nasa-metrics"><div class="empty-card">Loading daily NASA metrics…</div></div>
         <div class="card section-gap"><div class="card-heading"><div><h2>Daily climate trend</h2><p class="muted">Choose a variable; temperature, humidity and pressure can also be compared with local daily averages.</p></div><div class="heading-actions"><select id="nasa-variable" aria-label="NASA parameter"><option value="temperature_c">Temperature (°C)</option><option value="temperature_max_c">Max temperature (°C)</option><option value="temperature_min_c">Min temperature (°C)</option><option value="humidity_pct">Humidity (%)</option><option value="pressure_hpa">Pressure (hPa)</option><option value="precipitation_mm">Precipitation (mm/day)</option><option value="solar_mj_m2_day">Solar energy (MJ/m²/day)</option><option value="wind_2m_ms">Wind 2 m (m/s)</option><option value="wind_10m_ms">Wind 10 m (m/s)</option><option value="dew_point_c">Dew point (°C)</option><option value="soil_wetness_fraction">Modeled soil wetness (fraction)</option></select><select id="chart-days" aria-label="Days shown"><option value="14">14 days</option><option value="35" selected>35 days</option><option value="90">90 days</option></select></div></div>
@@ -98,7 +98,7 @@
         </div>
         <div class="card section-gap"><div class="card-heading"><h2>Recent daily values</h2><span class="data-badge" id="nasa-date-range">Source date range</span></div><div class="table-scroll"><table id="nasa-table"><thead><tr><th>Date</th><th>Mean °C</th><th>High °C</th><th>Low °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Rain mm</th><th>Solar MJ/m²</th><th>Wind m/s</th><th>Soil wetness</th></tr></thead><tbody><tr><td colspan="10">No NASA daily observations yet.</td></tr></tbody></table></div><p class="footnote">POWER is regional, not a sensor on your farm. Missing values are shown as —. NASA POWER is not a short-term forecast or a severe-weather warning service.</p></div>
         <div class="main-columns section-gap">
-          <section class="card forecast-card"><div class="card-heading"><div><h2>Upcoming weather</h2><p class="muted">Forecast from a separate weather service</p></div><select id="weather-mode"><option value="demo">Demo weather</option><option value="live">Live forecast</option></select></div><div id="weather-report" class="forecast-list">Loading…</div><p class="footnote" id="forecast-source"></p></section>
+          <section class="card forecast-card"><div class="card-heading"><div><h2>Upcoming weather</h2><p class="muted">Forecast from a separate weather service</p></div><select id="weather-mode"><option value="live" selected>Live forecast</option><option value="demo">Demo mode (no forecast)</option></select></div><div id="weather-report" class="forecast-list">Loading…</div><p class="footnote" id="forecast-source"></p></section>
           <section class="card alerts-card"><div class="card-heading"><div><h2>Severe weather warnings</h2><p class="muted">Official U.S. National Weather Service alerts where available</p></div><span class="icon-outline">⚠</span></div><div id="alert-section">Checking…</div><div id="local-flags"></div><p class="footnote">If alerts are unavailable, consult your local meteorological authority. FieldShift is not a life-safety warning system.</p></section>
         </div>
       </section>

@@ -1,118 +1,101 @@
-# FieldShift v7 — Crop calendar + Fieldy advisor
+# FieldShift v9 — Vercel-ready Preview
 
-This is an updated **ESP32-only simulation** of the FieldShift browser dashboard.
-The Raspberry Pi is **not** used. The Python demo emulates the ESP32 sensor
-stream and a local SQL cloud receiver. The eventual physical ESP32 SoftAP and
-TigerData deployment still require real ESP32 firmware and cloud configuration.
+This edition migrates the FieldShift v8 three-tab dashboard to **stateless FastAPI** for Vercel's Python runtime. It keeps the original responsive layout and Fieldy mascot, but changes Fieldy's output to compact cards rather than raw technical essays.
 
-## Changes in v7
+## What works in this preview
 
-- Dashboard tab order: **1. Crop Management**, **2. Live Sensor Data**, **3. NASA POWER Daily**.
-- Crop Management opens by default.
-- New interactive **Farm calendar**: previous/next month, today, daily events,
-  planting markers sourced from crop dates, add and delete watering, planting,
-  harvest, fertilizing, inspection, and other tasks.
-- Manual calendar tasks are written to a local JSON file under the app's data
-  directory (by default `~/.fieldshift_simple_v5/calendar_events.json`). They
-  survive application restarts. **Cloud calendar sync is not yet implemented.**
-- The former AI chat panel is replaced by **Fieldy**, a tiny original SVG
-  seedling mascot with a scrollable speech bubble. You can submit a farming
-  question and read Gemini's response beside Fieldy.
-- The Gemini model is `gemini-3.5-flash-lite`. The key is read **only on the
-  Python backend**, not sent to or stored by the browser.
-- Gemini receives crop allocations, recent local sensor readings, available
-  NASA POWER history, weather source context, and up to 30 upcoming calendar
-  tasks. Advice remains conditional, not an authoritative forecast.
+- **Crop Management first**: country → region → city selection (or exact GPS coordinates); crop allocations, planting dates, notes and an interactive calendar.
+- **NASA POWER Daily**: get up to 120 days of real regional historical weather data, graph it, and retain the result in the same browser. This is not a forecast.
+- **Upcoming weather**: Open-Meteo forecast (independent from NASA) and, in supported U.S. locations, National Weather Service warnings. If a provider cannot be checked, its status is shown as unavailable—not safe.
+- **Fieldy + Gemini 3.5 Flash-Lite**: concise headline, 2–4 next actions, short crop-specific guidance and a small data limitations note. Backend-only Gemini API key. Requires Auth0 login for public deployment.
+- **Live readings page**: shows ESP32 offline, with no invented telemetry. Real sensor uploads/TigerData are intentionally not implemented in this preview.
 
-## Quick start
+## What isn't ready yet
 
-Use Python 3.10+.
+This version is **not** a multi-user cloud farm database. Crop plans, selected location, calendar tasks and cached NASA results are saved only in the current browser's `localStorage`, scoped by Auth0 identity when logged in. They won't sync between computers, and shared machines aren't safe places to store sensitive data. The next step for actual farm accounts and ESP32 ingest is TigerData with farm-level authorization and device-specific credentials.
+
+### Fastest deployment path — Vercel CLI
+
+1. Extract the ZIP. Open a terminal in the folder containing `app.py`, `requirements.txt`, `public/` and `location_catalog.py`.
+2. Install Vercel CLI (requires Node.js):
+
+   ```bash
+   npm install -g vercel
+   vercel login
+   ```
+
+3. Run `vercel` from the project root. Create a new Vercel project when prompted. Vercel auto-detects FastAPI via `app.py`; choose the root directory containing `app.py`. No custom build command is required.
+4. Visit the preview deployment URL. It works as an **unprotected public demo** without user records, Gemini credentials, or ESP32 readings.
+5. When you are ready to restrict access and enable Gemini, add the environment variables listed below in **Vercel → Project → Settings → Environment Variables**. Redeploy once the settings are correct:
+
+   ```bash
+   vercel --prod
+   ```
+
+**Alternative:** Put the contents of the ZIP into a GitHub repository and import it from the Vercel dashboard. The important point is to deploy the *folder contents*, not upload the ZIP as a single website file.
+
+### Auth0 configuration before enabling public Gemini
+
+In Auth0, create a **Regular Web Application** and configure:
+
+- Allowed Callback URLs: `https://YOUR-PROJECT.vercel.app/auth/callback`
+- Allowed Logout URLs: `https://YOUR-PROJECT.vercel.app/`
+- Allowed Web Origins: `https://YOUR-PROJECT.vercel.app`
+
+In Vercel **server-side environment variables** (all deployments where needed), add:
+
+```dotenv
+AUTH0_ENABLED=1
+FIELDSHIFT_DEMO=0
+APP_BASE_URL=https://YOUR-PROJECT.vercel.app
+AUTH0_DOMAIN=YOUR-TENANT.us.auth0.com
+AUTH0_CLIENT_ID=YOUR-AUTH0-CLIENT-ID
+AUTH0_CLIENT_SECRET=YOUR-AUTH0-CLIENT-SECRET
+AUTH0_ALLOWED_EMAILS=your-email@example.com
+SESSION_SECRET=replace-with-64-random-characters
+GEMINI_API_KEY=YOUR_NEW_PRIVATE_GEMINI_KEY
+FIELDSHIFT_GEMINI_MODEL=gemini-3.5-flash-lite
+```
+
+If you have an **Auth0 API Audience**, you may also add `AUTH0_AUDIENCE` for a backend API access token. The Audience alone does **not** replace Auth0 Domain, Client ID, Client Secret, or the callback URL. The demo uses a single-farm verified-email allowlist; it does not yet implement secure per-farm TigerData permissions.
+
+**Never reuse the Gemini key previously posted in chat**; revoke it and generate a new one. Don't put keys or Auth0 secrets in frontend JavaScript or GitHub. If you enable Auth0 in production, configure *all* required values before deploying; the backend refuses to start if production auth configuration is incomplete.
+
+### Local testing
+
+Python 3.12 recommended:
 
 ```bash
 python -m pip install -r requirements.txt
-python run_demo.py
+python -m uvicorn app:app --reload --host 127.0.0.1 --port 8501
 ```
 
-Open http://127.0.0.1:8501 if your browser did not open automatically.
-Run `python run_demo.py --no-browser` for testing without a browser launch.
+Open http://127.0.0.1:8501. Without Auth0, this is an offline-friendly preview: plan/calendar state is kept in your browser, and Gemini is intentionally locked until sign-in is configured. `GET /api/health` reports basic API health.
 
-**Existing v6 data:** This version continues to use the same local app data
-folder, so saved farm plans and simulated sensor history remain compatible.
+### Why no SQLite in Vercel Functions?
 
-## Configure Gemini securely — once
+Vercel Functions don't offer durable, shared writable local storage; file changes vanish across function instances and deployments. This project's former JSON/SQLite persistence was replaced with browser-only *preview storage* until TigerData is connected. Avoid writing mutable data to the deployed source folder.
 
-**Do not use the API key previously posted in chat. Revoke it and generate a
-new key from Google AI Studio.** We intentionally did NOT embed the posted key
-in this source package or in the page, where anyone could retrieve it.
+### NASA API reliability and certificate errors
 
-The simplest option is:
+Country/state/city selections use bundled coordinates instead of calling a geocoding API. NASA downloads still require internet and valid HTTPS certificate chains. Certificate verification stays on; `certifi` and `truststore` are installed. The optional extra modeled soil-wetness request is disabled by default to keep the daily request responsive. Enable with `FIELDSHIFT_SOIL_LAYER=1` if needed.
 
-```bash
-python configure_gemini.py
-```
+### Security notes and limitations
 
-The command privately prompts for a **new** key (hidden input), saves it to a
-local `.env` file in the project folder, and instructs you to restart the demo.
-`.env` is ignored by Git and **excluded from the downloadable ZIP**. Python's
-`python-dotenv` loads the file on the backend. On a shared machine, manage file
-permissions appropriately. If the key is already stored in `GEMINI_API_KEY` in
-your environment, that environment variable takes priority.
+- No ESP32 Wi-Fi or upload endpoint is provided. Build an authenticated device-ingestion API and route it to TigerData before installing physical sensors in the field.
+- No multi-tenant database or server-side calendar persistence exists yet. Browser storage is not a secure replacement.
+- The public preview doesn't permit Gemini API calls without Auth0, to prevent anyone from draining your AI quota.
+- Severe-weather checking is not a substitute for official warning systems.
+- Gemini advice is *assistance*, not a guaranteed weather forecast, planting outcome or harvest prediction. It cannot calculate growth progress or harvest timing without actual planting/cultivar data.
 
-Alternatively:
+### Files
 
-Windows PowerShell:
+- `app.py` — Vercel-discoverable FastAPI entrypoint and API routes
+- `public/index.html`, `public/static/` — dashboard, style, sprite and browser-side preview storage
+- `intelligence.py`, `fieldshift_core.py` — NASA data and weather-source processing
+- `auth0_integration.py` — optional Auth0 Universal Login and protected API routes
+- `gemini_client.py` — Google Gemini SDK with structured JSON response mode
+- `locations_catalog.json` — bundled offline location presets
+- `.env.example` — placeholders only; never commit real credentials
 
-```powershell
-$env:GEMINI_API_KEY="YOUR_NEW_PRIVATE_KEY"
-python run_demo.py
-```
-
-macOS/Linux:
-
-```bash
-export GEMINI_API_KEY="YOUR_NEW_PRIVATE_KEY"
-python3 run_demo.py
-```
-
-In **Crop Management → Meet Fieldy**, press **Ask Fieldy for advice**. The
-status text tells you whether the backend sees a configured key. **No API key
-is needed to test the calendar, sensors, NASA demo graphs, or navigation.**
-
-If Gemini returns model not found, confirm that the requested model is
-available for your Google AI account. A working standalone SDK test confirms
-only that the specific model used by that test is accessible.
-
-## Calendar usage
-
-1. On **Crop Management**, set the farm location, total area, crop list, and
-   optional planting dates. Planting dates appear as green dots in the month
-   calendar. Save the farm plan to make those dates survive restarts.
-2. Click a day in the calendar. Fill in task type, crop (optional), and note.
-3. Click **Save task**. Tasks are persisted on the local Python server.
-4. Click the × next to a manually created task to delete it.
-
-Manual tasks appear in Gemini's prompt context as planned tasks, not observed
-plant growth or confirmed completed farm work.
-
-## Existing functionality kept
-
-- Synthetic ESP32 temperature, humidity, pressure, estimated altitude, light,
-  rain-plate wetness, gas index, and soil moisture readings.
-- Local station history, simulated cloud SQL receiver, cloud history export.
-- NASA POWER Daily real-data option with verified HTTPS and an offline demo.
-- Country/region/city dropdowns with offline location presets; exact GPS input.
-- Weather forecast and official severe weather alert panel (separate sources).
-
-The demo does **not** create a real ESP32 Wi-Fi hotspot; for actual sensors you
-will need separate ESP32 SoftAP firmware and a secure cloud-upload pathway.
-NASA POWER observations are historical/regional and cannot provide real-time
-storm alerts or independently reliable short-term forecasts.
-
-## Tests
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-Tests cover crop allocation, HTTPS certificate verification, preset location
-validation, the calendar CRUD API, secure Gemini status, and tab ordering.
+No site has been published from this ZIP by the project builder: complete Vercel CLI or GitHub import steps above and obtain your deployment URL from Vercel.

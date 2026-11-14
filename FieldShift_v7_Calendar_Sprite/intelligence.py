@@ -48,14 +48,16 @@ def fetch_nasa_daily(location, days=45):
             'start':start.strftime('%Y%m%d'),'end':end.strftime('%Y%m%d'),
             'format':'JSON','time-standard':'UTC'}
     main=http_json('GET',NASA_URL+'?'+urlencode({**common,'community':'AG',
-         'parameters':'T2M,T2M_MAX,T2M_MIN,T2MDEW,RH2M,PS,PRECTOTCORR,ALLSKY_SFC_SW_DWN,WS2M,WS10M'}), timeout=80)
+         'parameters':'T2M,T2M_MAX,T2M_MIN,T2MDEW,RH2M,PS,PRECTOTCORR,ALLSKY_SFC_SW_DWN,WS2M,WS10M'}), timeout=33)
     params=main['properties']['parameter']
     if not params.get('T2M'):
         raise ValueError('NASA POWER returned no daily temperature series.')
     moisture={}
     moisture_status='Unavailable (modeled wetness layer not retrieved)'
     try:
-        hydro=http_json('GET',NASA_URL+'?'+urlencode({**common,'community':'HY','parameters':'GWETTOP'}), timeout=50)
+        if os.getenv('FIELDSHIFT_SOIL_LAYER','0') != '1':
+            raise RuntimeError('Optional soil layer disabled to keep API responsive')
+        hydro=http_json('GET',NASA_URL+'?'+urlencode({**common,'community':'HY','parameters':'GWETTOP'}), timeout=12)
         moisture=hydro['properties']['parameter'].get('GWETTOP',{})
         if moisture:moisture_status='NASA POWER modeled top-layer soil wetness (fraction, not calibrated ESP32 moisture)'
     except Exception:

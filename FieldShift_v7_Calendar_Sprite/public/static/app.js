@@ -2,7 +2,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));
-const state={tab:'crops',overview:null,plan:null,history:[],nasa:null,localDays:{},weatherMode:'demo',toastTimer:null,locations:null};
+const state={tab:'crops',overview:null,plan:null,history:[],nasa:null,localDays:{},weatherMode:'live',toastTimer:null,locations:null};
 const units={temperature_c:'°C',humidity_pct:'%',pressure_hpa:'hPa',altitude_m:'m',rain_wetness_pct:'%',light_pct:'%',gas_index:'/100',soil_moisture_pct:'%'};
 const metricInfo=[['temperature_c','Air temperature','☀'],['humidity_pct','Humidity','◉'],['pressure_hpa','Air pressure','⛅'],['soil_moisture_pct','Soil moisture index','◈'],['rain_wetness_pct','Rain plate wetness','☂'],['light_pct','Light sensor index','☼'],['gas_index','Gas sensor index','◌'],['altitude_m','Estimated altitude','△']];
 const nasaInfo={temperature_c:['Mean temperature','°C'],temperature_max_c:['Max temperature','°C'],temperature_min_c:['Min temperature','°C'],humidity_pct:['Relative humidity','%'],pressure_hpa:['Surface pressure','hPa'],precipitation_mm:['Daily precipitation','mm/day'],solar_mj_m2_day:['Solar radiation','MJ/m²/day'],wind_2m_ms:['Wind at 2 m','m/s'],wind_10m_ms:['Wind at 10 m','m/s'],dew_point_c:['Dew point','°C'],soil_wetness_fraction:['Modeled topsoil wetness','fraction']};
@@ -11,7 +11,60 @@ function html(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 function fixed(v,n=1){return v===null||v===undefined||v===''||!Number.isFinite(+v)?'—':Number(v).toFixed(n);}
 function localTime(t){if(!t)return 'Never';const d=new Date(t);return Number.isNaN(d.getTime())?String(t):d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
 function showToast(text,isError=false){const t=$('#toast');t.textContent=text;t.classList.remove('hidden');t.classList.toggle('error',isError);clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>t.classList.add('hidden'),6000);}
-async function api(path,opts={}){const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),opts.timeout||20000);try{const r=await fetch(path,{method:opts.method||'GET',headers:{'Content-Type':'application/json'},body:opts.body===undefined?undefined:JSON.stringify(opts.body),signal:ctl.signal,cache:'no-store'});const j=await r.json();if(!r.ok)throw Error(j.detail||j.error||`HTTP ${r.status}`);return j;}catch(e){if(e.name==='AbortError')throw Error('Request timed out; check internet/API status.');throw e;}finally{clearTimeout(timer);}}
+// The Vercel preview is stateless; farm profile/calendar/location persist only in this browser.
+// Account-aware prefix avoids accidentally showing another signed-in account's demo records,
+// but localStorage is NOT a secure multi-user database and must not store sensitive farm data.
+let fsAccount='preview';
+const fsKey=k=>'fieldshift_v9_'+fsAccount+'_'+k;
+function saved(k,fallback=null){try{const v=localStorage.getItem(fsKey(k));return v===null?fallback:JSON.parse(v);}catch{return fallback;}}
+function persist(k,v){try{localStorage.setItem(fsKey(k),JSON.stringify(v));}catch(e){showToast('Browser storage unavailable. Changes may not persist.',true);}}
+function currentLocation(){return saved('location',{mode:'coords',label:'Demo — New York City',latitude:40.7128,longitude:-74.006});}
+async function api(path,opts={}){
+  const method=opts.method||'GET';
+  if(path==='/api/plan'&&method==='GET'){
+    const plan=saved('plan');if(plan)return plan;
+  }
+  if(path==='/api/calendar'){
+    const events=saved('calendar',[]);
+    if(method==='GET')return {events,storage:'browser only'};
+    if(method==='POST'){
+      const ev=opts.body||{};
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(ev.date)||!['planting','watering','harvest','fertilizing','inspection','other'].includes(ev.kind)||events.length>=500)throw Error('Enter a valid date and task type (maximum 500 tasks).');
+      const entry={id:crypto.randomUUID(),date:ev.date,kind:ev.kind,crop:String(ev.crop||'').slice(0,70),note:String(ev.note||'').slice(0,240)};
+      const next=[...events,entry].sort((a,b)=>a.date.localeCompare(b.date));persist('calendar',next);return {saved:true,events:next};
+    }
+  }
+  if(path.startsWith('/api/calendar/')&&method==='DELETE'){
+    const id=decodeURIComponent(path.split('/').pop());const list=saved('calendar',[]),next=list.filter(x=>x.id!==id);
+    if(next.length===list.length)throw Error('Task not found');
+    persist('calendar',next);return {deleted:true,events:next};
+  }
+  if(path==='/api/nasa?mode=auto&days=90'){
+    const c=saved('nasa');const loc=currentLocation();
+    if(c&&c.latitude===loc.latitude&&c.longitude===loc.longitude)return {nasa_daily:c,note:'Saved in this browser'};
+    return {nasa_daily:null,note:'Download the NASA POWER history for your farm location'};
+  }
+  if(path.startsWith('/api/nasa?')||path.startsWith('/api/weather?')){
+    const l=currentLocation();const sep=path.includes('?')?'&':'?';
+    path+=sep+'latitude='+encodeURIComponent(l.latitude)+'&longitude='+encodeURIComponent(l.longitude);
+  }
+  if(path==='/api/plan/advice'&&method==='POST'){
+    opts.body={...opts.body,location:currentLocation(),nasa_excerpt:state.nasa?.is_real_nasa?(state.nasa.rows||[]).slice(-12):[],
+      upcoming_calendar_tasks:saved('calendar',[]).filter(x=>x.date>=todayISO()).slice(0,15)};
+  }
+  const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),opts.timeout||20000);
+  try{
+    const r=await fetch(path,{method,headers:{'Content-Type':'application/json','X-FieldShift-Request':'1'},body:opts.body===undefined?undefined:JSON.stringify(opts.body),signal:ctl.signal,cache:'no-store'});
+    const j=await r.json();if(!r.ok)throw Error(j.detail||j.error||`HTTP ${r.status}`);
+    if(path==='/api/plan'&&method==='POST'&&j.plan)persist('plan',j.plan);
+    if(path==='/api/location'&&method==='POST'&&j.location){persist('location',j.location);localStorage.removeItem(fsKey('nasa'));}
+    if(path.startsWith('/api/nasa?mode=real')&&j.nasa_daily?.is_real_nasa)persist('nasa',j.nasa_daily);
+    if(path==='/api/overview')j.location=currentLocation();
+    return j;
+  }catch(e){if(e.name==='AbortError')throw Error('Request timed out; check internet/API status.');throw e;}
+  finally{clearTimeout(timer);}
+}
+
 function tab(name){state.tab=name;$$('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.tab===name));$$('.panel-tab').forEach(n=>n.classList.toggle('hidden',n.id!==`tab-${name}`));$('.sidebar').classList.remove('open');if(name==='live')loadLive();if(name==='nasa')loadNASA();if(name==='crops'&&!state.plan)loadPlan();}
 async function loadLive(){try{const o=await api('/api/overview');state.overview=o;updateLive(o);}catch(e){$('#sensor-state').textContent='Sensor station unavailable';$('#sync-message').textContent=e.message;showToast(e.message,true);}}
 function updateLive(o){const stateEl=$('#sensor-state');stateEl.className='state-chip'+(o.state==='live'?'':o.state==='offline'?' off':' warn');const names={live:'●  Live',stale:'◷  Sensor delayed',cloud_only:'◷  Last cloud record',offline:'○  Offline'};stateEl.textContent=names[o.state]||'Checking…';
@@ -64,7 +117,7 @@ function renderNASAChart(){const n=state.nasa,rows=n?.rows||[],key=$('#nasa-vari
   else if(key==='precipitation_mm')note='NASA rainfall is a daily total; the rain detector measures wetness, not rainfall depth.';
   else if(key==='solar_mj_m2_day')note='NASA solar energy and the photoresistor light index have different units.';
   $('#nasa-chart').innerHTML='<div class="chart-legend">'+legend+'</div><div class="nasa-chart-wrap">'+plotSVG(series,dates)+'</div>';$('#nasa-comparison-note').textContent=note;}
-async function fetchNASA(){const b=$('#fetch-nasa');b.disabled=true;b.textContent='Downloading NASA…';try{const d=await api('/api/nasa?mode=real&days=90',{timeout:110000});state.nasa=d.nasa_daily||null;renderNASA();showToast('Real NASA POWER history downloaded and cached.');}catch(e){showToast('NASA download failed: '+e.message,true);}finally{b.disabled=false;b.textContent='Download latest NASA data';}}
+async function fetchNASA(){const b=$('#fetch-nasa');b.disabled=true;b.textContent='Downloading NASA…';try{const d=await api('/api/nasa?mode=real&days=90',{timeout:65000});state.nasa=d.nasa_daily||null;renderNASA();showToast('NASA POWER history downloaded and saved in this browser.');}catch(e){showToast('NASA download failed: '+e.message,true);}finally{b.disabled=false;b.textContent='Download latest NASA data';}}
 function cropRow(c={}){const row=document.createElement('div');row.className='crop-entry';
   const stages=['Planning','Germination','Seedling','Vegetative','Flowering','Fruiting','Maturing','Harvested'];
   row.innerHTML=`<div class="crop-entry-heading"><span>Crop</span><button class="remove-crop" title="Remove crop">×</button></div>
@@ -88,20 +141,31 @@ function collectPlan(){return {total_area:Number($('#farm-size').value),area_uni
     area:Number(el.querySelector('.crop-area').value),stage:el.querySelector('.crop-stage').value,
     planted_on:el.querySelector('.crop-date').value,variety:el.querySelector('.crop-variety').value.trim()}))};}
 async function savePlan(){try{const r=await api('/api/plan',{method:'POST',body:collectPlan()});
-  $('#plan-save-status').textContent='Saved on this dashboard (local plan storage)';showToast('Farm plan saved.');}
+  $('#plan-save-status').textContent='Saved in this browser (not yet TigerData)';showToast('Farm plan saved in this browser.');}
   catch(e){showToast(e.message,true);}}
+function renderFieldyAdvice(a){
+  const actions=(a.actions||[]).map(x=>`<li><strong>${html(x.title)}</strong> ${html(x.detail)}</li>`).join('');
+  const crops=(a.crops||[]).map(x=>`<li><strong>${html(x.name)}:</strong> ${html(x.next_step)} ${x.timing?'<em>'+html(x.timing)+'</em>':''}</li>`).join('');
+  return `<div class="fieldy-summary"><strong>🌱 ${html(a.headline||'Your farm plan')}</strong></div>`+
+    (actions?`<div class="fieldy-section"><b>What to do next</b><ol>${actions}</ol></div>`:'')+
+    (crops?`<div class="fieldy-section"><b>Your crops</b><ul>${crops}</ul></div>`:'')+
+    (a.weather_watch?`<p class="fieldy-weather">☀ ${html(a.weather_watch)}</p>`:'')+
+    (a.data_note?`<p class="fieldy-note">${html(a.data_note)}</p>`:'');
+}
 async function askGemini(){
   const btn=$('#ask-gemini');btn.disabled=true;btn.textContent='Fieldy is thinking…';
-  const bubble=$('#advice-output');bubble.classList.add('thinking');bubble.textContent='🌱 Checking your crop plan, recent local readings, and available regional NASA history…';
+  const bubble=$('#advice-output');bubble.classList.add('thinking');bubble.textContent='🌱 Reviewing your crops and regional weather…';
   try{
-    const req={plan:collectPlan(),model:'gemini-3.5-flash-lite',question:$('#farm-question').value,weather_mode:state.weatherMode};
-    const r=await api('/api/plan/advice',{method:'POST',body:req,timeout:130000});
-    bubble.textContent=r.advice+'\n\n— '+localTime(r.created_at)+' · '+r.model+' · '+(r.data_mode==='demo'?'DEMO WEATHER':'LIVE FORECAST')+' —';
+    const req={plan:collectPlan(),model:'gemini-3.5-flash-lite',question:$('#farm-question').value,weather_mode:'live'};
+    const r=await api('/api/plan/advice',{method:'POST',body:req,timeout:110000});
+    if(!r.advice_structured)throw Error('Gemini returned an unexpected response.');
+    bubble.innerHTML=renderFieldyAdvice(r.advice_structured);
     bubble.scrollTop=0;
-  }catch(e){bubble.textContent='I couldn’t fetch Gemini advice right now. '+e.message;showToast(e.message,true);}
+  }catch(e){bubble.textContent='🌱 I couldn’t prepare your advice right now. '+e.message;showToast(e.message,true);}
   finally{bubble.classList.remove('thinking');btn.disabled=false;btn.textContent='✦ Ask Fieldy for advice';}
 }
-async function loadGeminiStatus(){try{const s=await api('/api/gemini/status');$('#advisor-key-status').textContent=s.configured?'● Gemini key configured on this computer':'○ Gemini key not configured — run python configure_gemini.py';}catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}}
+
+async function loadGeminiStatus(){try{const s=await api('/api/gemini/status');$('#advisor-key-status').textContent=s.configured?'● Gemini ready — signed-in farmers only':'○ Configure Gemini and Auth0 in Vercel settings to enable the advisor';}catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}}
 
 function fillSelect(element, values, placeholder) {
   const select = $(element);
@@ -160,7 +224,7 @@ async function saveLocation(){
   const btn=$('#save-location');btn.disabled=true;
   try{const r=await api('/api/location',{method:'POST',body:data,timeout:32000});
     $('#location-label').textContent=r.location.label;$('#location-current').textContent=r.location.label;
-    $('#location-message').textContent='Location saved. NASA cache cleared; download this region’s data in NASA POWER Daily.';
+    $('#location-message').textContent='Location saved in this browser. Download NASA data for the new region.';
     state.nasa=null;showToast('Farm location updated.');await loadLive();
   }catch(e){$('#location-message').textContent=e.message;showToast(e.message,true);}
   finally{btn.disabled=false;}
@@ -247,6 +311,16 @@ function attach(){
   $('#calendar-today').onclick=()=>{const d=new Date();calendarState.year=d.getFullYear();calendarState.month=d.getMonth();chooseCalendarDay(todayISO());};
   $('#calendar-form').addEventListener('submit',addCalendarEvent);
 }
-attach();initLocations();loadLive();loadPlan();loadCalendar();loadGeminiStatus();
-setInterval(()=>{if(state.tab==='live')loadLive();},10000);
-setInterval(()=>{if(state.tab==='nasa')loadNasaMeasurements();},60*60*1000);
+async function loadAccount(){
+  try{
+    const data=await api('/api/auth/me');const account=$('#account-box');
+    if(data.auth_enabled){
+      fsAccount='auth_'+String(data.user?.sub||'').replace(/[^a-z0-9_-]/gi,'_').slice(0,80);
+      account.textContent='Signed in: '+(data.user?.name||data.user?.email||'Farmer')+' · ';
+      const link=document.createElement('a');link.href='/auth/logout';link.textContent='Sign out';account.appendChild(link);
+    }else{fsAccount='preview';account.textContent='Public preview · Browser-only farm plan';}
+  }catch(e){console.warn('Account status unavailable',e);}
+}
+attach();
+loadAccount().then(()=>{initLocations();loadLive();loadPlan();loadCalendar();loadGeminiStatus();});
+setInterval(()=>{if(state.tab==='live')loadLive();},30000);
