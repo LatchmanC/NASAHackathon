@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#184b3a">
+  <title>FieldShift | Farm intelligence</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" aria-label="Main navigation">
+    <div class="brand"><span class="brandmark">✳</span><span><strong>FieldShift</strong><small>FARM INTELLIGENCE</small></span></div>
+    <div class="sidetitle">DASHBOARD</div>
+    <nav id="navigation">
+      <button class="navitem active" data-tab="crops"><span class="navicon">❋</span>Crop Management</button>
+      <button class="navitem" data-tab="live"><span class="navicon">▦</span>Live Sensor Data</button>
+      <button class="navitem" data-tab="nasa"><span class="navicon">◉</span>NASA POWER Daily</button>
+    </nav>
+    <div class="sidebar-bottom"><div class="sidebar-pi"><span class="statusdot"></span><div><strong>Field Station</strong><small id="side-status">Connecting...</small></div></div><p>ESP32 → SQL Cloud</p><span class="small-muted">3-tab field dashboard</span></div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="mobile-menu" aria-label="Toggle menu">☰</button>
+      <div class="location-line"><span class="pin">⌖</span> <span id="location-label">Loading location...</span></div>
+      <div class="top-actions"><button class="refresh-btn" id="refresh-button">↻ Refresh</button></div>
+    </header>
+    <div class="page">
+      <section class="panel-tab" id="tab-crops">
+        <div class="heading-row"><div><div class="eyebrow">FARM SETUP + GEMINI</div><h1>Crop Management</h1><p class="subtitle">Tell FieldShift where your land is, how much area you have, and which crops you're growing.</p></div><span class="data-badge">Farming advisor</span></div>
+        <section class="card section-gap location-inline"><div class="card-heading"><div><h2>Farm location</h2><p class="muted">Used for NASA records, forecasts, and crop planning.</p></div><strong id="location-current">Not selected</strong></div>
+          <div class="location-mode"><label><input type="radio" name="loc-mode" value="preset" checked> Country / State / City</label><label><input type="radio" name="loc-mode" value="coords"> Exact latitude / longitude</label></div>
+          <div id="area-field" class="location-selects">
+            <div><label for="country-select">Country</label><select id="country-select"><option value="">Loading countries…</option></select></div>
+            <div><label for="region-select">State / region</label><select id="region-select" disabled><option value="">Select country first</option></select></div>
+            <div><label for="city-select">City</label><select id="city-select" disabled><option value="">Select region first</option></select></div>
+            <p class="footnote">Offline preset locations use approximate city-center coordinates. For a farm outside the listed cities, select exact coordinates instead. No geocoding call is required.</p>
+          </div>
+          <div id="coordinate-fields" class="columns2 hidden"><div><label for="lat">Latitude</label><input id="lat" type="number" step="any" min="-90" max="90" value="40.7128"></div><div><label for="lon">Longitude</label><input id="lon" type="number" step="any" min="-180" max="180" value="-74.006"></div></div>
+          <div class="form-actions"><button class="secondary-btn" id="save-location">Update farm location</button><span id="location-message" class="muted"></span></div>
+        </section>
+        <div class="planner-layout section-gap"><section class="card plan-form"><div class="card-heading"><div><h2>Land and crops</h2><p class="muted">Allocate acres or hectares to your crops. Add planting dates where known.</p></div></div>
+          <div class="columns2"><div><label for="farm-size">Total land area</label><input id="farm-size" type="number" min="0.01" step="0.1" value="5"></div><div><label for="area-unit">Unit</label><select id="area-unit"><option value="acres">Acres</option><option value="hectares">Hectares</option></select></div></div>
+          <div class="crop-heading"><h3>Crop list</h3><button class="secondary-btn" id="add-crop">+ Add crop</button></div><div class="crop-list" id="crop-list"></div><div class="allocation" id="allocation-summary"></div>
+          <label for="farm-notes">Soil / irrigation / other notes (optional)</label><textarea id="farm-notes" rows="3" placeholder="Soil texture, irrigation, goals, known constraints..."></textarea><div class="form-actions"><button class="secondary-btn" id="save-farm">Save farm plan</button><span class="muted" id="plan-save-status"></span></div>
+        </section>
+          <section class="card advisor-panel">
+            <div class="card-heading"><div><h2>Meet Fieldy</h2><p class="muted">Your Gemini-powered growing companion</p></div><span class="ai-sparkle" aria-hidden="true">✦</span></div>
+            <div class="advisor-stage">
+              <div class="advisor-character"><img src="/static/fieldy.svg" width="112" height="144" alt="Fieldy, a friendly little seedling mascot"><span class="advisor-name">FIELDY</span></div>
+              <div class="speech-bubble" id="advice-output" role="status" aria-live="polite"><strong>Hi, farmer! 🌱</strong><p>Tell me about your crops and I'll help you plan your next steps using available field and NASA data.</p></div>
+            </div>
+            <label for="farm-question">What would you like Fieldy to help with?</label>
+            <textarea id="farm-question" rows="3">For every crop, suggest conditions to watch before planting, potential harvest timing, evidence-based growth progress if possible, and priorities over the next week.</textarea>
+            <button class="primary-btn fullwidth" id="ask-gemini">✦ Ask Fieldy for advice</button>
+            <div class="advisor-meta" id="advisor-key-status">Gemini key: checking server settings…</div>
+            <p class="footnote">Fieldy uses Gemini 3.5 Flash-Lite on the Python backend. Advice is conditional, not a verified yield or severe-weather forecast.</p>
+          </section></div>
+        <section class="card crop-calendar section-gap" aria-label="Farm calendar">
+          <div class="card-heading calendar-heading"><div><h2>Farm calendar</h2><p class="muted">Track planting, watering, inspections, and harvest tasks. Planting dates from your crop list appear automatically.</p></div><span class="data-badge">Saved locally</span></div>
+          <div class="calendar-layout">
+            <div class="calendar-main">
+              <div class="calendar-toolbar"><button class="calendar-arrow" id="calendar-prev" aria-label="Previous month">‹</button><h3 id="calendar-label">Month</h3><button class="calendar-arrow" id="calendar-next" aria-label="Next month">›</button><button class="secondary-btn calendar-today" id="calendar-today">Today</button></div>
+              <div class="calendar-weekdays" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+              <div class="calendar-grid" id="calendar-grid" role="group" aria-label="Calendar days"></div>
+              <div class="calendar-legend"><span><i class="event-dot planting"></i> Planting</span><span><i class="event-dot watering"></i> Water</span><span><i class="event-dot harvest"></i> Harvest</span><span><i class="event-dot other"></i> Other</span></div>
+            </div>
+            <div class="calendar-side">
+              <div class="calendar-date-head"><span class="muted">Selected date</span><strong id="calendar-selected-label">—</strong></div>
+              <div id="calendar-events" class="calendar-events"><p class="muted">No scheduled tasks.</p></div>
+              <form id="calendar-form" class="calendar-form">
+                <h3>Add a farm task</h3>
+                <label for="event-date">Date</label><input id="event-date" type="date" required>
+                <div class="columns2"><div><label for="event-type">Task</label><select id="event-type"><option value="planting">Planting</option><option value="watering">Watering</option><option value="harvest">Harvest</option><option value="fertilizing">Fertilizing</option><option value="inspection">Inspection</option><option value="other">Other</option></select></div><div><label for="event-crop">Crop (optional)</label><input id="event-crop" maxlength="70" placeholder="e.g. Tomato" list="crop-suggestions"><datalist id="crop-suggestions"></datalist></div></div>
+                <label for="event-note">Notes (optional)</label><input id="event-note" maxlength="240" placeholder="e.g. Check soil before watering">
+                <button type="submit" class="primary-btn">+ Save task</button>
+              </form>
+              <p class="footnote">Calendar tasks are saved to this demo's local database folder. Cloud calendar synchronization is not implemented yet.</p>
+            </div>
+          </div>
+        </section>
+      </section>
+      <section class="panel-tab hidden" id="tab-live">
+        <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Current field conditions. When the sensor station is offline, the latest cloud reading is shown with its timestamp.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
+        <div class="sync-note" id="sync-message">Checking sensor station and cloud connection…</div>
+        <div class="metric-grid" id="live-metrics"><div class="empty-card">Loading readings…</div></div>
+        <div class="card section-gap"><div class="card-heading"><div><h2>Data storage</h2><p class="muted">Readings are buffered locally, then copied to the SQL cloud receiver.</p></div><span class="data-badge">Cloud history</span></div>
+          <div class="stats-row compact-stats"><div class="stat-card"><span>Storage</span><strong id="storage-type">Checking</strong></div><div class="stat-card"><span>Cloud records</span><strong id="stored-count">—</strong></div><div class="stat-card"><span>Last cloud sync</span><strong id="last-cloud-sync">—</strong></div></div>
+          <details id="history-details"><summary>View recently synced readings</summary><div class="table-scroll"><table id="history-table"><thead><tr><th>Recorded UTC</th><th>Temp °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Soil %</th><th>Rain wetness %</th><th>Light %</th><th>Gas index</th><th>Altitude m</th></tr></thead><tbody><tr><td colspan="9">Loading cloud readings…</td></tr></tbody></table></div><button class="secondary-btn" id="export-csv">Export displayed records as CSV</button><p class="footnote" id="history-note"></p></details>
+        </div>
+      </section>
+      <section class="panel-tab hidden" id="tab-nasa">
+        <div class="heading-row"><div><div class="eyebrow">REGIONAL ENVIRONMENTAL HISTORY</div><h1>NASA POWER Daily</h1><p class="subtitle">Daily regional weather and solar observations for the selected farm. The data is cached and can be refreshed once daily.</p></div><div class="heading-actions"><button class="secondary-btn" id="change-nasa-location">Change location</button><button class="primary-btn" id="fetch-nasa">Download latest NASA data</button></div></div>
+        <div class="info-strip" id="nasa-source">Checking the NASA POWER cache…</div>
+        <div class="metric-grid nasa-cards" id="nasa-metrics"><div class="empty-card">Loading daily NASA metrics…</div></div>
+        <div class="card section-gap"><div class="card-heading"><div><h2>Daily climate trend</h2><p class="muted">Choose a variable; temperature, humidity and pressure can also be compared with local daily averages.</p></div><div class="heading-actions"><select id="nasa-variable" aria-label="NASA parameter"><option value="temperature_c">Temperature (°C)</option><option value="temperature_max_c">Max temperature (°C)</option><option value="temperature_min_c">Min temperature (°C)</option><option value="humidity_pct">Humidity (%)</option><option value="pressure_hpa">Pressure (hPa)</option><option value="precipitation_mm">Precipitation (mm/day)</option><option value="solar_mj_m2_day">Solar energy (MJ/m²/day)</option><option value="wind_2m_ms">Wind 2 m (m/s)</option><option value="wind_10m_ms">Wind 10 m (m/s)</option><option value="dew_point_c">Dew point (°C)</option><option value="soil_wetness_fraction">Modeled soil wetness (fraction)</option></select><select id="chart-days" aria-label="Days shown"><option value="14">14 days</option><option value="35" selected>35 days</option><option value="90">90 days</option></select></div></div>
+          <div id="nasa-chart"></div><p class="footnote" id="nasa-comparison-note"></p>
+        </div>
+        <div class="card section-gap"><div class="card-heading"><h2>Recent daily values</h2><span class="data-badge" id="nasa-date-range">Source date range</span></div><div class="table-scroll"><table id="nasa-table"><thead><tr><th>Date</th><th>Mean °C</th><th>High °C</th><th>Low °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Rain mm</th><th>Solar MJ/m²</th><th>Wind m/s</th><th>Soil wetness</th></tr></thead><tbody><tr><td colspan="10">No NASA daily observations yet.</td></tr></tbody></table></div><p class="footnote">POWER is regional, not a sensor on your farm. Missing values are shown as —. NASA POWER is not a short-term forecast or a severe-weather warning service.</p></div>
+        <div class="main-columns section-gap">
+          <section class="card forecast-card"><div class="card-heading"><div><h2>Upcoming weather</h2><p class="muted">Forecast from a separate weather service</p></div><select id="weather-mode"><option value="demo">Demo weather</option><option value="live">Live forecast</option></select></div><div id="weather-report" class="forecast-list">Loading…</div><p class="footnote" id="forecast-source"></p></section>
+          <section class="card alerts-card"><div class="card-heading"><div><h2>Severe weather warnings</h2><p class="muted">Official U.S. National Weather Service alerts where available</p></div><span class="icon-outline">⚠</span></div><div id="alert-section">Checking…</div><div id="local-flags"></div><p class="footnote">If alerts are unavailable, consult your local meteorological authority. FieldShift is not a life-safety warning system.</p></section>
+        </div>
+      </section>
+    </div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </main>
+</div>
+<script src="/static/app.js" defer></script>
+</body></html>
