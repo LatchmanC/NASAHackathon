@@ -350,7 +350,7 @@ def install_soil_rotation_routes(app):
                         "source":USDA_SOURCE,
                         "message":"Detailed USDA soil surveys are not available at this point.",
                         "location":{"latitude":lat,"longitude":lon}}
-            return _demo_public_usda(round(lat,3),round(lon,3),int(time.time()//3600))
+            return _demo_public_usda(round(lat,5),round(lon,5),int(time.time()//3600))
         owner=_owner(request)
         lat,lon=_coords(latitude,longitude)
         if not (24<=lat<=72 and -180<=lon<=-60):
