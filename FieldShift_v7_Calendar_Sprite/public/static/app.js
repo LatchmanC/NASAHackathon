@@ -14,9 +14,9 @@ function html(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 function fixed(v,n=1){return v===null||v===undefined||v===''||!Number.isFinite(+v)?'—':Number(v).toFixed(n);}
 function localTime(t){if(!t)return 'Never';const d=new Date(t);return Number.isNaN(d.getTime())?String(t):d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
 function showToast(text,isError=false){const t=$('#toast');t.textContent=text;t.classList.remove('hidden');t.classList.toggle('error',isError);clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>t.classList.add('hidden'),6000);}
-// The Vercel preview is stateless; farm profile/calendar/location persist only in this browser.
-// Account-aware prefix avoids accidentally showing another signed-in account's demo records,
-// but localStorage is NOT a secure multi-user database and must not store sensitive farm data.
+// Verified Auth0 farm documents are loaded from TigerData, with old localStorage
+// kept only as an opt-in migration source/backup. Sample accounts remain local.
+// This account-aware prefix is for legacy records, not an authorization boundary.
 let fsAccount='preview';
 const fsKey=k=>'fieldshift_v9_'+fsAccount+'_'+k;
 const farmKeys=['plan','location','calendar','rotation_scenarios'];
