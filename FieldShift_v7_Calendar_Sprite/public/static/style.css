@@ -87,3 +87,10 @@
 .fieldy-message .fieldy-section>b{display:block;margin-bottom:6px;font-size:11px;color:#3f6550}
 .fieldy-message .fieldy-section li{margin:4px 0;color:#627e6c;font-size:11px}
 @media(max-width:660px){.advisor-stage{grid-template-columns:minmax(0,1fr)}.advisor-character{display:none}.fieldy-message{max-width:100%}.fieldy-chat-history{max-height:390px}}
+
+/* Public demo mode: visible on every panel to prevent simulated-data confusion. */
+.demo-mode-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 19px;padding:12px 15px;border:1px solid #e7d4a8;border-radius:11px;background:#fff9eb;color:#77551d;font-size:12px;line-height:1.5}
+.demo-mode-banner strong{white-space:nowrap;letter-spacing:.4px}
+.demo-mode-banner span{flex:1;min-width:175px}
+.demo-mode-banner a{color:#6b4c19;font-weight:700;text-decoration:underline}
+@media(max-width:700px){.demo-mode-banner{align-items:flex-start}}
