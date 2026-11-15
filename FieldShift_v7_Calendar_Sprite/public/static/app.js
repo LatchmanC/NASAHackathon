@@ -2,7 +2,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));
-const state={tab:'crops',overview:null,plan:null,history:[],nasa:null,localDays:{},weatherMode:'live',toastTimer:null,locations:null};
+const state={tab:'crops',overview:null,plan:null,history:[],nasa:null,localDays:{},toastTimer:null,locations:null};
 const units={temperature_c:'°C',humidity_pct:'%',pressure_hpa:'hPa',altitude_m:'m',ph:'pH',rain_wetness_pct:'%',light_pct:'%',gas_index:'/100',soil_moisture_pct:'%'};
 const metricInfo=[['temperature_c','Air temperature','☀'],['humidity_pct','Humidity','◉'],['pressure_hpa','Air pressure','⛅'],['soil_moisture_pct','Soil moisture index','◈'],['rain_wetness_pct','Rain plate wetness','☂'],['light_pct','Light sensor index','☼'],['gas_index','Gas sensor index','◌'],['altitude_m','Estimated altitude','△'],['ph','Acidity (pH)','◍']];
 const nasaInfo={temperature_c:['Mean temperature','°C'],temperature_max_c:['Max temperature','°C'],temperature_min_c:['Min temperature','°C'],humidity_pct:['Relative humidity','%'],pressure_hpa:['Surface pressure','hPa'],precipitation_mm:['Daily precipitation','mm/day'],solar_mj_m2_day:['Solar radiation','MJ/m²/day'],wind_2m_ms:['Wind at 2 m','m/s'],wind_10m_ms:['Wind at 10 m','m/s'],dew_point_c:['Dew point','°C'],soil_wetness_fraction:['Modeled topsoil wetness','fraction']};
@@ -44,13 +44,17 @@ async function api(path,opts={}){
     if(c&&c.latitude===loc.latitude&&c.longitude===loc.longitude)return {nasa_daily:c,note:'Saved in this browser'};
     return {nasa_daily:null,note:'Download the NASA POWER history for your farm location'};
   }
+  if((path==='/api/overview'||path.startsWith('/api/recorded')||path==='/api/charts')&&method==='GET'){
+    path+=(path.includes('?')?'&':'?')+'view='+encodeURIComponent(saved('sensor_view','auto'));
+  }
   if(path.startsWith('/api/nasa?')||path.startsWith('/api/weather?')){
     const l=currentLocation();const sep=path.includes('?')?'&':'?';
     path+=sep+'latitude='+encodeURIComponent(l.latitude)+'&longitude='+encodeURIComponent(l.longitude);
   }
   if(path==='/api/plan/advice'&&method==='POST'){
     opts.body={...opts.body,location:currentLocation(),nasa_excerpt:state.nasa?.is_real_nasa?(state.nasa.rows||[]).slice(-12):[],
-      upcoming_calendar_tasks:saved('calendar',[]).filter(x=>x.date>=todayISO()).slice(0,15)};
+      upcoming_calendar_tasks:saved('calendar',[]).filter(x=>x.date>=todayISO()).slice(0,15),
+      sensor_view:saved('sensor_view','auto')};
   }
   const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),opts.timeout||20000);
   try{
@@ -59,7 +63,7 @@ async function api(path,opts={}){
     if(path==='/api/plan'&&method==='POST'&&j.plan)persist('plan',j.plan);
     if(path==='/api/location'&&method==='POST'&&j.location){persist('location',j.location);localStorage.removeItem(fsKey('nasa'));smsSync();}
     if(path.startsWith('/api/nasa?mode=real')&&j.nasa_daily?.is_real_nasa)persist('nasa',j.nasa_daily);
-    if(path==='/api/overview')j.location=currentLocation();
+    if(path.startsWith('/api/overview'))j.location=currentLocation();
     return j;
   }catch(e){if(e.name==='AbortError')throw Error('Request timed out; check internet/API status.');throw e;}
   finally{clearTimeout(timer);}
@@ -69,7 +73,7 @@ function tab(name){state.tab=name;$$('.navitem').forEach(n=>n.classList.toggle('
 async function loadLive(){try{const o=await api('/api/overview');state.overview=o;updateLive(o);}catch(e){$('#sensor-state').textContent='Sensor station unavailable';$('#sync-message').textContent=e.message;showToast(e.message,true);}}
 function updateLive(o){const stateEl=$('#sensor-state');stateEl.className='state-chip'+(o.state==='live'?'':o.state==='offline'?' off':' warn');const names={live:'●  Live',demo:'◉  SYNTHETIC SAMPLE',stale:'◷  Sensor delayed',cloud_only:'◷  Last cloud record',offline:'○  Offline'};stateEl.textContent=names[o.state]||'Checking…';
   $('#location-label').textContent=o.location?.label||'Location not selected';$('#location-current').textContent=o.location?.label||'Location not selected';$('#side-status').textContent=o.state==='demo'?'Synthetic example only':o.state==='live'?'Receiving ESP32 data':o.pi_connected?'Station online · sensor stale':o.cloud_connected?'Station offline · cloud available':'Station offline';$('.statusdot').classList.toggle('online',o.state==='live');
-  let message=o.last_reading_at?`Last sensor reading: ${localTime(o.last_reading_at)}`:'No recorded reading yet';message+=o.sensor_source==='SYNTHETIC_SAMPLE'?' · SYNTHETIC SAMPLE / NO ESP32 CONNECTED':'';message+=o.last_cloud_sync?` · Last cloud sync: ${localTime(o.last_cloud_sync)}`:' · Cloud sync unconfirmed';if(o.pending_cloud!==null&&o.pending_cloud!==undefined)message+=` · ${o.pending_cloud} queued`;$('#sync-message').textContent=message;
+  let message=o.last_reading_at?`Last sensor reading: ${localTime(o.last_reading_at)}`:'No recorded reading yet';message+=o.sensor_source==='SYNTHETIC_SAMPLE'?' · SYNTHETIC SAMPLE / NO ESP32 CONNECTED':'';message+=o.sensor_access_mode==='shared'?' · Shared device (read-only)':'';message+=o.last_cloud_sync?` · Last cloud sync: ${localTime(o.last_cloud_sync)}`:' · Cloud sync unconfirmed';if(o.pending_cloud!==null&&o.pending_cloud!==undefined)message+=` · ${o.pending_cloud} queued`;$('#sync-message').textContent=message;
   const m=o.latest||{};$('#live-metrics').innerHTML=metricInfo.map(([key,label,icon])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${fixed(m[key])}<span class="metric-unit">${html(units[key])}</span></div><div class="metric-hint">${m[key]===undefined?'No measurement yet':o.sensor_source==='SYNTHETIC_SAMPLE'?'Synthetic sample, not an ESP32 reading':'Latest ESP32 measurement'}</div></article>`).join('');
   $('#storage-type').textContent=o.sensor_source==='SYNTHETIC_SAMPLE'?'Sample data only':o.cloud_connected?'Private cloud sensor storage':'Cloud unavailable';$('#stored-count').textContent=o.cloud_record_count??'—';$('#last-cloud-sync').textContent=localTime(o.last_cloud_sync);
   renderFlags(o.flags||[]);
@@ -77,7 +81,7 @@ function updateLive(o){const stateEl=$('#sensor-state');stateEl.className='state
 async function loadHistory(){try{const d=await api('/api/recorded?limit=100&offset=0');state.history=d.readings||[];const keys=['recorded_at','temperature_c','humidity_pct','pressure_hpa','soil_moisture_pct','rain_wetness_pct','light_pct','gas_index','altitude_m','ph'];$('#history-table tbody').innerHTML=state.history.length?state.history.map(r=>'<tr>'+keys.map((k,i)=>`<td>${i===0?html(String(r[k]||'—').replace('T',' ').replace('+00:00',' UTC')):fixed(r[k])}</td>`).join('')+'</tr>').join(''):'<tr><td colspan="10">No cloud records yet.</td></tr>';$('#history-note').textContent=`Showing ${state.history.length} latest cloud records; ${d.total||0} total.`;}catch(e){$('#history-note').textContent='Cloud receiver unavailable: '+e.message;}}
 function exportCSV(){if(!state.history.length){showToast('There are no displayed readings to export.',true);return;}const columns=['recorded_at','device_id',...Object.keys(units)];const csv=[columns.join(','),...state.history.map(row=>columns.map(c=>'"'+String(row[c]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fieldshift_recent_readings.csv';a.click();URL.revokeObjectURL(url);showToast('Exported current history rows.');}
 function renderFlags(flags){const el=$('#local-flags');el.innerHTML=flags.length?'<div class="flags-title">LOCAL SENSOR FLAGS (NOT OFFICIAL WARNINGS)</div>'+flags.map(f=>`<div class="flag"><strong>${html(f.event)}</strong><small>${html(f.description)}</small></div>`).join(''):'';}
-async function loadWeather(){const mode=state.weatherMode;try{const data=await api('/api/weather?mode='+mode,{timeout:28000});if(mode!==state.weatherMode)return;const list=data.forecast||[];$('#weather-report').innerHTML=list.length?list.slice(0,5).map(d=>{const day=new Date(d.date+'T12:00:00Z').toLocaleDateString(undefined,{weekday:'short',timeZone:'UTC'});return `<div class="forecast-day"><strong>${html(day)}</strong><span class="weather-desc">${html(d.summary||'')}</span><span class="temp">${fixed(d.high_c,0)}° / ${fixed(d.low_c,0)}°</span><span class="rain">☂ ${fixed(d.rain_chance_pct,0)}%</span></div>`;}).join(''):'<div class="alert-unavailable">Forecast unavailable.</div>';$('#forecast-source').textContent=data.forecast_source||'';renderAlerts(data.alert_status||{});}catch(e){$('#weather-report').textContent='Forecast unavailable: '+e.message;$('#alert-section').textContent='Official alert status unavailable. Consult the relevant meteorological service.';}}
+async function loadWeather(){try{const data=await api('/api/weather?mode=live',{timeout:28000});const list=data.forecast||[];$('#weather-report').innerHTML=list.length?list.slice(0,5).map(d=>{const day=new Date(d.date+'T12:00:00Z').toLocaleDateString(undefined,{weekday:'short',timeZone:'UTC'});return `<div class="forecast-day"><strong>${html(day)}</strong><span class="weather-desc">${html(d.summary||'')}</span><span class="temp">${fixed(d.high_c,0)}° / ${fixed(d.low_c,0)}°</span><span class="rain">☂ ${fixed(d.rain_chance_pct,0)}%</span></div>`;}).join(''):'<div class="alert-unavailable">Forecast unavailable.</div>';$('#forecast-source').textContent=data.forecast_source||'';renderAlerts(data.alert_status||{});}catch(e){$('#weather-report').textContent='Forecast unavailable: '+e.message;$('#alert-section').textContent='Official alert status unavailable. Consult the relevant meteorological service.';}}
 function renderAlerts(a){const box=$('#alert-section'), alerts=a.alerts||[];if(a.status==='demo'){box.innerHTML='<div class="alert-unavailable"><strong>SIMULATION ONLY</strong> — The following example alert is fictional.</div>'+alerts.slice(0,3).map(x=>`<div class="alert-item"><strong>${html(x.event)}</strong><p>${html(x.headline||'')}</p></div>`).join('');return;}if(a.status==='live'){box.innerHTML=alerts.length?alerts.slice(0,7).map(x=>`<div class="alert-item"><strong>${html(x.event)} · ${html(x.severity)}</strong><p>${html(x.headline||'')}</p><p>Expires ${html(localTime(x.expires))}</p></div>`).join(''):'<div class="alert-clear">No active NWS alerts returned at last successful check for this point.</div>';return;}box.innerHTML='<div class="alert-unavailable">⚠ Official warnings could not be verified. An unavailable check does not mean conditions are safe. '+html(a.message||'')+'</div>';}
 function numeric(v){const x=Number(v);return v===null||v===undefined||v===''||!Number.isFinite(x)?null:x;}
 function plotSVG(series,dates,minHeight=124){
@@ -298,13 +302,17 @@ function attach(){
   $('#export-csv').onclick=exportCSV;
   $('#fetch-nasa').onclick=fetchNASA;$('#change-nasa-location').onclick=()=>tab('crops');
   $('#nasa-variable').onchange=renderNASAChart;$('#chart-days').onchange=renderNASAChart;
-  $('#weather-mode').onchange=e=>{state.weatherMode=e.target.value;loadWeather();};
+  $('#sensor-view').onchange=e=>{persist('sensor_view',e.target.value);loadLive();loadHistory();loadLocalDays();};
   $$('input[name="loc-mode"]').forEach(n=>n.addEventListener('change',locationMode));
   $('#country-select').onchange=updateRegions;$('#region-select').onchange=updateCities;
   $('#save-location').onclick=saveLocation;
   $('#farm-size').oninput=updateAllocation;$('#area-unit').onchange=updateAllocation;
   $('#add-crop').onclick=()=>{$('#crop-list').appendChild(cropRow({name:'',area:1,stage:'Planning'}));updateAllocation();};
   $('#save-farm').onclick=savePlan;$('#ask-gemini').onclick=askGemini;$('#pair-device').onclick=pairDevice;
+  $('#generate-share-token').onclick=generateViewingToken;
+  $('#join-shared-device').onclick=joinSharedDevice;
+  $('#disconnect-shared-device').onclick=disconnectSharedDevice;
+  $('#revoke-shared-device').onclick=revokeSharedDevice;
   $('#calendar-prev').onclick=()=>moveCalendarMonth(-1);
   $('#calendar-next').onclick=()=>moveCalendarMonth(1);
   $('#calendar-today').onclick=()=>{const d=new Date();calendarState.year=d.getFullYear();calendarState.month=d.getMonth();chooseCalendarDay(todayISO());};
@@ -327,12 +335,66 @@ async function pairDevice(){
   }catch(e){box.textContent='Unable to pair ESP32: '+e.message;showToast(e.message,true)}
   finally{button.disabled=false;}
 }
+function showPrivateToken(boxId,token,title){
+  const box=$(boxId);
+  box.replaceChildren();
+  const label=document.createElement('p');label.textContent=title;
+  const input=document.createElement('textarea');input.value=token;input.readOnly=true;input.rows=3;input.style.width='100%';
+  const copy=document.createElement('button');copy.type='button';copy.className='secondary-btn';copy.textContent='Copy viewing token';
+  copy.onclick=()=>navigator.clipboard.writeText(token).then(()=>showToast('Viewing token copied.'));
+  box.append(label,input,copy);
+}
+async function generateViewingToken(){
+  const button=$('#generate-share-token'),box=$('#share-token-result');
+  button.disabled=true;box.textContent='Generating view-only access…';
+  try{
+    const device_id=($('#share-device-id').value||'esp32-01').trim();
+    const r=await api('/api/device/share/token',{method:'POST',body:{device_id}});
+    showPrivateToken('#share-token-result',r.token,'Share this view-only token with the other Auth0 account. It expires in 180 days.');
+  }catch(e){box.textContent='Could not generate viewing token: '+e.message;showToast(e.message,true);}
+  finally{button.disabled=false;}
+}
+async function loadSharedDeviceStatus(){
+  try{
+    const s=await api('/api/device/share/status');
+    $('#shared-device-status').textContent=s.connected?'Connected to shared ESP32: '+s.device_id+' · Read-only':'No shared ESP32 is linked to this account.';
+  }catch(e){$('#shared-device-status').textContent='Shared device status unavailable: '+e.message;}
+}
+async function joinSharedDevice(){
+  const token=$('#shared-device-token').value.trim();
+  if(!token){showToast('Paste a viewing token first.',true);return;}
+  const button=$('#join-shared-device');button.disabled=true;
+  try{
+    const r=await api('/api/device/share/join',{method:'POST',body:{token}});
+    $('#shared-device-token').value='';
+    persist('sensor_view','shared');$('#sensor-view').value='shared';
+    showToast('Shared ESP32 '+r.device_id+' connected.');
+    await loadSharedDeviceStatus();await loadLive();await loadHistory();await loadLocalDays();
+  }catch(e){showToast('Could not connect shared device: '+e.message,true);}
+  finally{button.disabled=false;}
+}
+async function disconnectSharedDevice(){
+  if(!confirm('Disconnect the shared ESP32 from this account?'))return;
+  try{
+    await api('/api/device/share/disconnect',{method:'POST',body:{}});
+    persist('sensor_view','auto');$('#sensor-view').value='auto';
+    showToast('Shared ESP32 disconnected.');await loadSharedDeviceStatus();await loadLive();await loadHistory();
+  }catch(e){showToast(e.message,true);}
+}
+async function revokeSharedDevice(){
+  if(!confirm('Revoke every viewing token you generated for your ESP32? Other accounts will lose access.'))return;
+  try{
+    await api('/api/device/share/revoke',{method:'POST',body:{}});
+    showToast('All previous viewing tokens revoked.');
+  }catch(e){showToast(e.message,true);}
+}
 async function loadAccount(){
   try{
     const data=await api('/api/auth/me');const account=$('#account-box');
     if(!data.authenticated){window.location.replace('/');return;}
     if(data.authenticated){
       fsAccount='auth_'+String(data.user?.sub||'').replace(/[^a-z0-9_-]/gi,'_').slice(0,80);
+      $('#sensor-view').value=saved('sensor_view','auto');
       $('#device-pair-panel').classList.toggle('hidden',data.user?.mode==='sample');
       if(data.user?.mode==='sample'){
         if(!saved('location'))persist('location',{mode:'coords',label:'Test Farm — San Diego, California',latitude:32.7157,longitude:-117.1611,resolution:'sample city-center coordinates'});
@@ -364,5 +426,5 @@ function initSms(){
   $('#sms-remind').addEventListener('click',()=>smsAction('#sms-remind','/api/sms/remind-now',smsPayload()));
   loadSmsStatus();
 }
-loadAccount().then(()=>{initLocations();loadLive();loadPlan();loadCalendar();loadGeminiStatus();initSms();});
+loadAccount().then(()=>{initLocations();loadLive();loadSharedDeviceStatus();loadPlan();loadCalendar();loadGeminiStatus();initSms();});
 setInterval(()=>{if(state.tab==='live')loadLive();},30000);

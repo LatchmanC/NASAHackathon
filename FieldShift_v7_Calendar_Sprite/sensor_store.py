@@ -2,7 +2,7 @@
 
 This is a starter receiver, NOT a high-frequency time-series database.
 """
-import os, math, json, hashlib
+import os, math, json, hashlib, secrets
 from datetime import datetime, timezone
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, model_validator
@@ -58,7 +58,8 @@ def save_snapshot(owner, reading, old):
     from vercel.blob import sync as blob
     latest={k:v for k,v in reading.items() if k in METRIC_BOUNDS or k in ('device_id','recorded_at')}
     rows=([latest]+(old.get('readings',[]) if old else []))[:72]
-    doc={'schema':1,'latest':latest,'last_updated':latest['recorded_at'],'readings':rows}
+    doc={'schema':1,'latest':latest,'last_updated':latest['recorded_at'],'readings':rows,
+         'share_version':(old.get('share_version','v1') if old else 'v1')}
     try:
         blob.put_blob(path_for(owner),json.dumps(doc,separators=(',',':')).encode(),
             access='private',content_type='application/json',allow_overwrite=True,cache_control_max_age=60)
@@ -80,3 +81,60 @@ def daily_averages(rows):
             val=row.get(key)
             if isinstance(val,(int,float)) and math.isfinite(val):d.setdefault(key,[]).append(val)
     return {day:{key:round(sum(vals)/len(vals),2) for key,vals in d.items()} for day,d in data.items()}
+
+
+
+def share_path_for(viewer):
+    """The recipient's own private Blob key, never exposed to clients."""
+    return path_for(viewer).removesuffix('/snapshot.json')+'/shared_link.json'
+
+
+def read_shared_link(viewer):
+    if not configured():
+        return None
+    from vercel.blob import sync as blob
+    from vercel.blob.errors import BlobNotFoundError
+    try:
+        value=blob.get_blob(share_path_for(viewer),access='private')
+        if value is None:
+            return None
+        if len(value.body)>5000:
+            raise ValueError('Oversized shared-device link')
+        link=json.loads(value.body)
+        return link if isinstance(link,dict) and link.get('schema')==1 and link.get('token') else None
+    except BlobNotFoundError:
+        return None
+    except Exception as exc:
+        raise HTTPException(503,'Shared device connection could not be loaded') from exc
+
+
+def save_shared_link(viewer,token=None):
+    """Save or disconnect a single view-only device link for this Auth0 account."""
+    if not configured():
+        raise HTTPException(503,'Sensor storage is not configured')
+    from vercel.blob import sync as blob
+    doc={'schema':1,'token':token if token else None}
+    try:
+        blob.put_blob(share_path_for(viewer),json.dumps(doc).encode(),
+                      access='private',content_type='application/json',
+                      allow_overwrite=True,cache_control_max_age=60)
+    except Exception as exc:
+        raise HTTPException(503,'Shared device connection could not be saved') from exc
+    return doc
+
+
+def revoke_shared_viewers(owner):
+    """Rotate the owner's share version without invalidating ESP32 upload tokens."""
+    current=read_snapshot(owner)
+    if not current or not current.get('latest'):
+        raise HTTPException(409,'Upload a reading from your ESP32 before managing sharing')
+    from vercel.blob import sync as blob
+    current=dict(current)
+    current['share_version']=secrets.token_urlsafe(18)
+    try:
+        blob.put_blob(path_for(owner),json.dumps(current,separators=(',',':')).encode(),
+                      access='private',content_type='application/json',
+                      allow_overwrite=True,cache_control_max_age=60)
+    except Exception as exc:
+        raise HTTPException(503,'Could not revoke shared access') from exc
+    return current

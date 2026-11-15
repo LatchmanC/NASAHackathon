@@ -7,7 +7,8 @@ import json,os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from fastapi import HTTPException
-from sensor_store import read_snapshot,age_seconds
+from sensor_store import age_seconds
+from device_api import resolve_device_data
 
 def answer_question(req,request,validate_plan,forecast,official_alerts,
                     fetch_nasa_daily,generate_gemini_reply,default_model,valid_lat_lon):
@@ -31,7 +32,7 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
     if not key:raise HTTPException(503,'Gemini key not configured')
     if req.model!=default_model:raise HTTPException(400,'Unsupported model')
     location={'latitude':lat,'longitude':lon,'label':str(req.location.get('label',''))[:100]}
-    snapshot=read_snapshot(user['sub'])
+    snapshot,access=resolve_device_data(user['sub'],getattr(req,'sensor_view','auto'))
     latest=snapshot.get('latest') if snapshot else None
     age=age_seconds(latest)
     def weather_fetch():
@@ -61,7 +62,8 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
         'farm_plan':plan,
         'farm_location':location,
         'calendar_tasks':req.upcoming_calendar_tasks[-30:],
-        'esp32_sensor':{'status':sensor_status,'age_minutes':round(age/60,1) if age is not None else None,
+        'esp32_sensor':{'status':sensor_status,'access':'shared read-only' if access=='shared' else 'my device',
+                        'age_minutes':round(age/60,1) if age is not None else None,
                         'readings':latest if age is not None and age<=86400 else None,
                         'source':'Real device uploads, not a forecast, if present'},
         'seven_day_forecast':{'source':'Open-Meteo live weather forecast' if weather else 'unavailable','days':weather},

@@ -1,3 +1,13 @@
+## Shared ESP32 access (read-only) and live forecasts
+
+A farmer with ESP32 uploads can open **Live Sensor Data → Share ESP32 readings** and generate a **viewing token** for their actual device ID. Another verified Auth0 user can paste it under **Enter a viewing token**, then select **Shared ESP32**. Both accounts read the same private snapshot; only the original account's ESP32 upload token authorizes posting readings. A viewing token cannot be used with `/api/device/ingest`.
+
+Viewing tokens expire after 180 days. The owner can select **Revoke all sharing tokens I issued** without stopping ESP32 uploads; recipients may also **Disconnect shared ESP32**. Links are stored privately in Vercel Blob under each recipient and cannot be applied to arbitrary accounts. Each recipient can connect one shared ESP32 at a time. Use the **Show sensor data from** selector to choose an owned or shared feed. Fieldy's Gemini advisor uses the selected feed, with read-only sharing labeled in its context.
+
+**Upcoming weather** no longer offers demo mode. The website always requests the live forecast. If the forecast is unavailable it displays an error; it does not fabricate weather data.
+
+---
+
 ## Current production login — Auth0 only
 
 The public `test / test` sample login has been retired. The login page offers only Auth0 sign-in and self-service registration. Set `FIELDSHIFT_SAMPLE_ACCOUNT=0` in the Vercel Production environment. The retired `/auth/demo` route rejects logins, and existing sample sessions are invalidated by authentication middleware. Verified Auth0 accounts retain Gemini, ESP32 pairing, NASA weather, and other existing capabilities.

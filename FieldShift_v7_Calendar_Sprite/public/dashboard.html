@@ -91,13 +91,31 @@
         </section>
       </section>
       <section class="panel-tab hidden" id="tab-live">
-        <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Pair an ESP32 below to upload real sensor readings. Each signed-in farm gets its own private cloud records.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
+        <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Pair an ESP32 below to upload real sensor readings. Your account can display its own readings or view another farmer’s ESP32 with their permission.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
         <div class="sync-note" id="sync-message">Checking sensor station and cloud connection…</div>
         <div class="metric-grid" id="live-metrics"><div class="empty-card">Loading readings…</div></div>
         <div class="card section-gap" id="device-pair-panel"><div class="card-heading"><div><h2>🔗 Pair your ESP32</h2><p class="muted">Generate a private upload token for your Auth0 account. Keep it out of source control.</p></div><span class="data-badge">Private device</span></div>
           <div class="columns2"><div><label for="device-id">Device ID</label><input id="device-id" value="esp32-01" maxlength="40" autocomplete="off"></div><div><label>&nbsp;</label><button id="pair-device" type="button" class="primary-btn">Generate pairing token</button></div></div>
           <div id="device-pair-result" class="footnote">Pairing is required once per ESP32. Use the Arduino firmware in the downloadable project.</div>
-          <p class="footnote">This is low-frequency private Blob storage for initial testing. We'll move to TigerData for continuous sensor feeds. Only actual uploaded readings are presented as ESP32 measurements.</p>
+          <p class="footnote">The device upload token controls hardware uploads. Do not share it with another account; use the separate viewing token below.</p>
+        </div>
+        <div class="card section-gap" id="shared-device-panel">
+          <div class="card-heading"><div><h2>👥 Share ESP32 readings</h2><p class="muted">Let another verified Auth0 account view your readings without permission to upload or change them.</p></div><span class="data-badge">View only</span></div>
+          <div class="columns2">
+            <div><label for="share-device-id">Your ESP32 device ID</label><input id="share-device-id" value="esp32-01" maxlength="40" autocomplete="off"></div>
+            <div><label>&nbsp;</label><button id="generate-share-token" type="button" class="secondary-btn">Generate viewing token</button></div>
+          </div>
+          <div id="share-token-result" class="footnote">Generate a viewing token after your ESP32 has sent its first reading. Give this token to the other account.</div>
+          <label for="shared-device-token">Enter a viewing token from another account</label>
+          <textarea id="shared-device-token" rows="3" style="width:100%;max-width:100%" placeholder="Paste a viewing token here (not an ESP32 upload token)"></textarea>
+          <div class="heading-actions">
+            <button id="join-shared-device" type="button" class="primary-btn">Connect shared ESP32</button>
+            <button id="disconnect-shared-device" type="button" class="secondary-btn">Disconnect shared ESP32</button>
+          </div>
+          <p class="footnote" id="shared-device-status">Checking your shared device connection…</p>
+          <div class="heading-actions"><button id="revoke-shared-device" type="button" class="secondary-btn">Revoke all sharing tokens I issued</button></div>
+          <p class="footnote">Viewing tokens are read-only, expire after 180 days, and can be revoked by the device owner. They do not grant control of the ESP32.</p>
+          <div class="heading-actions"><label for="sensor-view">Show sensor data from</label><select id="sensor-view"><option value="auto">Automatic</option><option value="own">My ESP32</option><option value="shared">Shared ESP32</option></select></div>
         </div>
         <div class="card section-gap"><div class="card-heading"><div><h2>Data storage</h2><p class="muted">ESP32 readings are stored in private Blob snapshots. TigerData will be added for higher-frequency history.</p></div><span class="data-badge">Cloud history</span></div>
           <div class="stats-row compact-stats"><div class="stat-card"><span>Storage</span><strong id="storage-type">Checking</strong></div><div class="stat-card"><span>Cloud records</span><strong id="stored-count">—</strong></div><div class="stat-card"><span>Last cloud sync</span><strong id="last-cloud-sync">—</strong></div></div>
@@ -113,7 +131,7 @@
         </div>
         <div class="card section-gap"><div class="card-heading"><h2>Recent daily values</h2><span class="data-badge" id="nasa-date-range">Source date range</span></div><div class="table-scroll"><table id="nasa-table"><thead><tr><th>Date</th><th>Mean °C</th><th>High °C</th><th>Low °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Rain mm</th><th>Solar MJ/m²</th><th>Wind m/s</th><th>Soil wetness</th></tr></thead><tbody><tr><td colspan="10">No NASA daily observations yet.</td></tr></tbody></table></div><p class="footnote">POWER is regional, not a sensor on your farm. Missing values are shown as —. NASA POWER is not a short-term forecast or a severe-weather warning service.</p></div>
         <div class="main-columns section-gap">
-          <section class="card forecast-card"><div class="card-heading"><div><h2>Upcoming weather</h2><p class="muted">Forecast from a separate weather service</p></div><select id="weather-mode"><option value="live" selected>Live forecast</option><option value="demo">Demo mode (no forecast)</option></select></div><div id="weather-report" class="forecast-list">Loading…</div><p class="footnote" id="forecast-source"></p></section>
+          <section class="card forecast-card"><div class="card-heading"><div><h2>Upcoming weather</h2><p class="muted">Forecast from a separate weather service</p></div><span class="data-badge">Live forecast</span></div><div id="weather-report" class="forecast-list">Loading…</div><p class="footnote" id="forecast-source"></p></section>
           <section class="card alerts-card"><div class="card-heading"><div><h2>Severe weather warnings</h2><p class="muted">Official U.S. National Weather Service alerts where available</p></div><span class="icon-outline">⚠</span></div><div id="alert-section">Checking…</div><div id="local-flags"></div><p class="footnote">If alerts are unavailable, consult your local meteorological authority. FieldShift is not a life-safety warning system.</p></section>
         </div>
       </section>

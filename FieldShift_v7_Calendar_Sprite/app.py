@@ -16,6 +16,7 @@ from intelligence import fetch_nasa_daily, demo_nasa_daily, official_alerts, dem
 from location_catalog import catalog, resolve_preset
 from gemini_client import generate_gemini_reply, DEFAULT_GEMINI_MODEL
 from sensor_store import configured as sensor_configured, read_snapshot, age_seconds, daily_averages
+from device_api import resolve_device_data
 from device_api import install_device_routes
 from advisor_core import answer_question
 
@@ -42,13 +43,13 @@ def home(): return FileResponse(ROOT/'public'/'index.html',headers={'Cache-Contr
 def health(): return {'ok':True,'service':'FieldShift','sensor_storage_configured':sensor_configured()}
 
 @app.get('/api/overview')
-def overview(request:Request):
+def overview(request:Request,view:str='auto'):
     if is_sample(request):
         now=datetime.now(timezone.utc).isoformat()
         latest={'recorded_at':now,'device_id':'TEST-ESP32-NOT-CONNECTED','temperature_c':24.7,'humidity_pct':53.1,'pressure_hpa':1013.7,'altitude_m':-3.8,'rain_wetness_pct':5.1,'light_pct':62.7,'gas_index':22.2,'soil_moisture_pct':47.4}
         return {'state':'demo','latest':latest,'pi_connected':False,'cloud_connected':False,'last_reading_at':now,'last_cloud_sync':None,'pending_cloud':None,'cloud_record_count':0,'location':SAMPLE_LOCATION,'flags':[], 'sensor_source':'SYNTHETIC_SAMPLE'}
     user=request.session.get('user',{}) if 'session' in request.scope else {}
-    snap=read_snapshot(user['sub']) if user.get('mode')=='auth0' else None
+    snap,access=resolve_device_data(user['sub'],view) if user.get('mode')=='auth0' else (None,'none')
     latest=snap.get('latest') if snap else None
     age=age_seconds(latest)
     fresh=age is not None and age<15*60
@@ -58,31 +59,32 @@ def overview(request:Request):
             'last_cloud_sync':snap.get('last_updated') if snap else None,'pending_cloud':None,
             'cloud_record_count':len(snap.get('readings',[])) if snap else 0,
             'location':DEFAULT_LOCATION,'flags':[],
-            'sensor_source':'ESP32_PRIVATE_BLOB' if latest else 'NONE'}
+            'sensor_source':'ESP32_SHARED_READONLY' if latest and access=='shared' else 'ESP32_PRIVATE_BLOB' if latest else 'NONE',
+            'sensor_access_mode':access}
 
 @app.get('/api/recorded')
-def recorded(request:Request,limit:int=100,offset:int=0):
+def recorded(request:Request,limit:int=100,offset:int=0,view:str='auto'):
     if is_sample(request):
         now=datetime.now(timezone.utc)
         rows=[{'recorded_at':(now-timedelta(hours=i)).isoformat(),'device_id':'TEST-ESP32-NOT-CONNECTED','temperature_c':round(23.7+i*.2,1),'humidity_pct':round(52+i*.6,1),'pressure_hpa':1013.7,'soil_moisture_pct':round(47+i*.7,1),'rain_wetness_pct':5.1,'light_pct':62.7,'gas_index':22.2,'altitude_m':-3.8} for i in range(12)]
         return {'readings':rows[offset:offset+min(limit,100)],'total':len(rows),'storage':'SYNTHETIC SAMPLE ONLY'}
     user=request.session.get('user',{}) if 'session' in request.scope else {}
-    snap=read_snapshot(user['sub']) if user.get('mode')=='auth0' else None
+    snap,access=resolve_device_data(user['sub'],view) if user.get('mode')=='auth0' else (None,'none')
     rows=snap.get('readings',[]) if snap else []
     offset=max(0,offset);limit=max(1,min(100,limit))
     return {'readings':rows[offset:offset+limit],'total':len(rows),
-            'storage':'Private Blob bounded history' if sensor_configured() else 'Cloud storage unavailable'}
+            'storage':('Shared read-only ESP32 history' if access=='shared' else 'Private Blob bounded history') if sensor_configured() else 'Cloud storage unavailable'}
 
 @app.get('/api/charts')
-def charts(request:Request):
+def charts(request:Request,view:str='auto'):
     if is_sample(request):
         date=datetime.now(timezone.utc).date().isoformat()
         return {'local_days':{date:{'temperature_c':24.7,'humidity_pct':53.1,'pressure_hpa':1013.7,'soil_moisture_pct':47.4}},'nasa':None,'record_count':12,'source':'SYNTHETIC SAMPLE ONLY'}
     user=request.session.get('user',{}) if 'session' in request.scope else {}
-    snap=read_snapshot(user['sub']) if user.get('mode')=='auth0' else None
+    snap,access=resolve_device_data(user['sub'],view) if user.get('mode')=='auth0' else (None,'none')
     rows=snap.get('readings',[]) if snap else []
     return {'local_days':daily_averages(rows),'nasa':None,'record_count':len(rows),
-            'source':'ESP32 measurements' if rows else 'No authenticated device readings'}
+            'source':('Shared ESP32 measurements' if access=='shared' else 'ESP32 measurements') if rows else 'No authenticated device readings'}
 
 @app.get('/api/locations/catalog')
 def locations(): return {'countries':catalog(),'note':'Preset city centers; precise locations require GPS coordinates.'}
@@ -127,11 +129,8 @@ def forecast(lat,lon):
 def weather(mode:str='live',latitude:float=40.7128,longitude:float=-74.006):
     try: lat,lon=valid_lat_lon(latitude,longitude)
     except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
-    if mode not in ('live','demo'):raise HTTPException(400,'mode must be live or demo')
+    if mode!='live':raise HTTPException(400,'Only live weather forecasts are supported')
     loc={'latitude':lat,'longitude':lon,'label':f'{lat:.3f}, {lon:.3f}'}
-    if mode=='demo':
-        # Explicit demo option remains available for offline rehearsals.
-        return {'mode':'demo','forecast':[], 'forecast_source':'No real forecast selected (demo mode)', 'alert_status':demo_alerts(loc),'location':loc}
     errors=[]
     try: upcoming=forecast(lat,lon)
     except Exception as ex:upcoming=[];errors.append('Forecast unavailable: '+str(ex)[:120])
@@ -208,6 +207,7 @@ class AdviceRequest(BaseModel):
     nasa_excerpt:list[dict]=Field(default_factory=list)
     upcoming_calendar_tasks:list[dict]=Field(default_factory=list)
     weather_mode:str='live'
+    sensor_view:str='auto'
 
 @app.post('/api/plan/advice')
 def farming_advice(req:AdviceRequest,request:Request):
