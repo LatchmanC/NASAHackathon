@@ -30,7 +30,9 @@ async function api(path,opts={}){
     if(method==='POST'){
       const ev=opts.body||{};
       if(!/^\d{4}-\d{2}-\d{2}$/.test(ev.date)||!['planting','watering','harvest','fertilizing','inspection','other'].includes(ev.kind)||events.length>=500)throw Error('Enter a valid date and task type (maximum 500 tasks).');
-      const entry={id:crypto.randomUUID(),date:ev.date,kind:ev.kind,crop:String(ev.crop||'').slice(0,70),note:String(ev.note||'').slice(0,240)};
+      const entry={id:ev.id||crypto.randomUUID(),date:ev.date,kind:ev.kind,crop:String(ev.crop||'').slice(0,70),note:String(ev.note||'').slice(0,240),
+        google_event_id:ev.google_event_id||null};
+      if(events.some(x=>x.id===entry.id))return {saved:true,events,already_saved:true};
       const next=[...events,entry].sort((a,b)=>a.date.localeCompare(b.date));persist('calendar',next);smsSync();return {saved:true,events:next};
     }
   }
@@ -54,7 +56,7 @@ async function api(path,opts={}){
   if(path==='/api/plan/advice'&&method==='POST'){
     opts.body={...opts.body,location:currentLocation(),nasa_excerpt:state.nasa?.is_real_nasa?(state.nasa.rows||[]).slice(-12):[],
       upcoming_calendar_tasks:saved('calendar',[]).filter(x=>x.date>=todayISO()).slice(0,15),
-      sensor_view:saved('sensor_view','auto')};
+      sensor_view:saved('sensor_view','auto'),client_today:todayISO()};
   }
   const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),opts.timeout||20000);
   try{
@@ -163,7 +165,76 @@ function renderFieldyAdvice(a){
     (assumptions?`<div class="fieldy-section"><b>Assumptions / estimates</b><ul>${assumptions}</ul></div>`:'')+
     (sources?`<div class="fieldy-section"><b>Data used / limitations</b><ul>${sources}</ul></div>`:'');
 }
+let pendingFieldyCalendar=null;
+async function confirmFieldyCalendar(){
+  if(!pendingFieldyCalendar)return;
+  const p=pendingFieldyCalendar,button=$('#fieldy-calendar-yes');
+  button.disabled=true;
+  try{
+    const status=await api('/api/google/status');
+    if(!status.connected){
+      showToast('Connect Google Calendar first, then confirm this task again.',true);
+      $('#google-calendar-status').textContent='Connect Google Calendar to enable the two-calendar confirmation.';
+      return;
+    }
+    // Google is written first; local farm calendar is only added if it succeeded.
+    // The idempotent request ID prevents double Google events after retries.
+    const g=await api('/api/google/events',{method:'POST',body:{...p,confirmed:true,
+      request_id:p.request_id},timeout:28000});
+    const r=await api('/api/calendar',{method:'POST',body:{...p,id:p.request_id,
+      google_event_id:g.event_id}});
+    calendarState.tasks=r.events;
+    const parts=p.date.split('-').map(Number);
+    calendarState.year=parts[0];calendarState.month=parts[1]-1;
+    calendarState.selected=p.date;renderCalendar();
+    pendingFieldyCalendar=null;persist('fieldy_calendar_pending',null);
+    $('#fieldy-calendar-confirmation').classList.add('hidden');
+    $('#advice-output').textContent='Added '+(calendarKinds[p.kind]||'Farm task')+
+      (p.crop?' for '+p.crop:'')+' on '+prettyDay(p.date)+
+      ' to both your farm calendar and Google Calendar.';
+    showToast('Saved to Farm Calendar and Google Calendar.');
+  }catch(err){showToast('Could not sync both calendars: '+err.message,true);}
+  finally{button.disabled=false;}
+}
+function dismissFieldyCalendar(){
+  pendingFieldyCalendar=null;persist('fieldy_calendar_pending',null);
+  $('#fieldy-calendar-confirmation').classList.add('hidden');
+  showToast('Calendar proposal dismissed; nothing was added.');
+}
+function showFieldyCalendarProposal(raw){
+  if(!raw||!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw.date)||!calendarKinds[raw.kind])return;
+  pendingFieldyCalendar={date:raw.date,kind:raw.kind,crop:String(raw.crop||'').slice(0,70),
+    note:String(raw.note||'').slice(0,240),request_id:raw.request_id||crypto.randomUUID().replaceAll('-','')};
+  persist('fieldy_calendar_pending',pendingFieldyCalendar);
+  $('#fieldy-calendar-proposal').textContent=(calendarKinds[raw.kind]||'Farm task')+
+    (raw.crop?' · '+raw.crop:'')+' — '+prettyDay(raw.date);
+  $('#fieldy-calendar-confirmation').classList.remove('hidden');
+}
+async function loadGoogleCalendarStatus(){
+  const badge=$('#google-calendar-badge'),button=$('#connect-google-calendar');
+  try{
+    const r=await api('/api/google/status');
+    badge.textContent=r.connected?'● Connected':r.configured?'Not connected':'Setup required';
+    $('#google-calendar-status').textContent=r.message||'';
+    button.disabled=!r.configured;
+    button.textContent=r.connected?'Reconnect Google Calendar':'Connect Google Calendar';
+    $('#disconnect-google-calendar').classList.toggle('hidden',!r.connected);
+    const query=new URLSearchParams(location.search);
+    if(query.has('google_calendar')){
+      showToast(query.get('google_calendar')==='connected'?'Google Calendar connected. Now confirm your pending task.':
+        'Google Calendar connection was not completed.',query.get('google_calendar')!=='connected');
+      history.replaceState(null,'',location.pathname);
+    }
+  }catch(e){badge.textContent='Unavailable';$('#google-calendar-status').textContent=e.message;}
+}
 async function askGemini(){
+  const typed=$('#farm-question').value.trim();
+  if(pendingFieldyCalendar&&/^(yes|yeah|yep|sure|confirm|add it|yes please|do it)[.!\\s]*$/i.test(typed)){
+    await confirmFieldyCalendar();return;
+  }
+  if(pendingFieldyCalendar&&/^(no|nope|cancel|not now)[.!\\s]*$/i.test(typed)){
+    dismissFieldyCalendar();return;
+  }
   const btn=$('#ask-gemini');btn.disabled=true;btn.textContent='Fieldy is thinking…';
   const bubble=$('#advice-output');bubble.classList.add('thinking');bubble.textContent='🌱 Reviewing your question, crops, NASA history, weather and any ESP32 readings…';
   try{
@@ -171,6 +242,9 @@ async function askGemini(){
     const r=await api('/api/plan/advice',{method:'POST',body:req,timeout:110000});
     if(!r.advice_structured)throw Error('Gemini returned an unexpected response.');
     bubble.innerHTML=renderFieldyAdvice(r.advice_structured);
+    pendingFieldyCalendar=null;persist('fieldy_calendar_pending',null);
+    $('#fieldy-calendar-confirmation').classList.add('hidden');
+    if(r.calendar_proposal)showFieldyCalendarProposal(r.calendar_proposal);
     bubble.scrollTop=0;
   }catch(e){bubble.textContent='🌱 I couldn’t prepare your advice right now. '+e.message;showToast(e.message,true);}
   finally{bubble.classList.remove('thinking');btn.disabled=false;btn.textContent='✦ Ask Fieldy for advice';}
@@ -236,7 +310,16 @@ async function saveLocation(){
   try{const r=await api('/api/location',{method:'POST',body:data,timeout:32000});
     $('#location-label').textContent=r.location.label;$('#location-current').textContent=r.location.label;
     $('#location-message').textContent='Location saved in this browser. Download NASA data for the new region.';
-    state.nasa=null;showToast('Farm location updated.');await loadLive();
+    state.nasa=null;
+    try{
+      const l=r.location;
+      await api('/api/farm/location',{method:'POST',body:{latitude:l.latitude,
+        longitude:l.longitude,label:l.label},timeout:18000});
+      $('#location-message').textContent='Farm location saved and registered for automatic daily NASA POWER sync.';
+    }catch(syncError){
+      $('#location-message').textContent='Saved in browser; daily NASA sync not registered: '+syncError.message;
+    }
+    showToast('Farm location updated.');await loadLive();
   }catch(e){$('#location-message').textContent=e.message;showToast(e.message,true);}
   finally{btn.disabled=false;}
 }
@@ -307,31 +390,29 @@ let archiveReady=false;
 function archiveView(){return saved('sensor_view','auto');}
 function archiveLocation(){return currentLocation();}
 function initArchive(){
-  const now=new Date().toISOString().slice(0,10);
-  if(!$('#archive-date').value)$('#archive-date').value=now;
-  if(!$('#archive-month').value)$('#archive-month').value=now.slice(0,7);
-  if(!archiveReady){archiveReady=true;loadArchiveDays();}
+  if(!archiveReady){archiveReady=true;loadArchiveDates();}
   else loadArchiveTimes();
 }
-async function loadArchiveDays(){
-  const month=$('#archive-month').value||new Date().toISOString().slice(0,7);
-  const date=$('#archive-date');
-  if(!date.value.startsWith(month))date.value=month+'-01';
-  const status=$('#archive-message');
+async function loadArchiveDates(){
+  const select=$('#archive-date'),previous=select.value,status=$('#archive-message');
   try{
     const s=await api('/api/history/status');
     if(!s.configured){
-      status.textContent='TigerData is not connected yet. Current readings still use the existing Vercel Blob storage. Configure TigerData to start 10-minute history.';
-      $('#archive-available-days').textContent='No TigerData archive is available yet.';
-      $('#archive-snapshot').replaceChildren(new Option('TigerData not configured',''));
+      select.replaceChildren(new Option('TigerData not configured',''));
+      $('#archive-snapshot').replaceChildren(new Option('No saved timestamps',''));
+      status.textContent='TigerData is not connected yet. No sample data will be generated.';
       return;
     }
-    const [y,m]=month.split('-');
-    const d=await api('/api/history/days?year='+encodeURIComponent(y)+'&month='+encodeURIComponent(m)+'&view='+encodeURIComponent(archiveView()));
-    $('#archive-available-days').textContent=d.days.length?
-      'Saved dates (UTC): '+d.days.map(x=>x.date+' ('+x.count+' snapshots)').join(' · '):
-      'No sensor snapshots saved in this month yet.';
-    status.textContent='TigerData connected. Choose a saved date, then select the time.';
+    const data=await api('/api/history/dates?view='+encodeURIComponent(archiveView()));
+    select.replaceChildren(new Option('Select a saved date',''));
+    for(const day of data.dates||[]){
+      const label=new Date(day+'T12:00:00Z').toLocaleDateString(undefined,
+        {weekday:'short',month:'long',day:'numeric',year:'numeric',timeZone:'UTC'});
+      select.add(new Option(label+' · '+day,day));
+    }
+    if((data.dates||[]).includes(previous))select.value=previous;
+    status.textContent=data.dates?.length?'Choose a saved date, then a timestamp.':
+      'No historical ESP32 data yet. Only real uploaded readings will appear here.';
     await loadArchiveTimes();
   }catch(e){status.textContent='History unavailable: '+e.message;}
 }
@@ -407,7 +488,6 @@ function attach(){
   $('#refresh-button').onclick=()=>tab(state.tab);
   $('#history-details').addEventListener('toggle',e=>{if(e.target.open)loadHistory();});
   $('#export-csv').onclick=exportCSV;
-  $('#archive-month').onchange=loadArchiveDays;
   $('#archive-date').onchange=loadArchiveTimes;
   $('#archive-load').onclick=loadArchiveEntry;
   $('#archive-sync-nasa').onclick=syncArchiveNASA;
@@ -420,6 +500,14 @@ function attach(){
   $('#farm-size').oninput=updateAllocation;$('#area-unit').onchange=updateAllocation;
   $('#add-crop').onclick=()=>{$('#crop-list').appendChild(cropRow({name:'',area:1,stage:'Planning'}));updateAllocation();};
   $('#save-farm').onclick=savePlan;$('#ask-gemini').onclick=askGemini;$('#pair-device').onclick=pairDevice;
+  $('#fieldy-calendar-yes').onclick=confirmFieldyCalendar;
+  $('#fieldy-calendar-no').onclick=dismissFieldyCalendar;
+  $('#connect-google-calendar').onclick=()=>location.assign('/api/google/connect');
+  $('#disconnect-google-calendar').onclick=async()=>{
+    if(!confirm('Disconnect Google Calendar? Farm tasks already saved here remain.'))return;
+    try{await api('/api/google/disconnect',{method:'POST',body:{}});await loadGoogleCalendarStatus();}
+    catch(e){showToast(e.message,true);}
+  };
   $('#generate-share-token').onclick=generateViewingToken;
   $('#join-shared-device').onclick=joinSharedDevice;
   $('#disconnect-shared-device').onclick=disconnectSharedDevice;
@@ -539,7 +627,16 @@ function initSms(){
 }
 loadAccount().then(()=>{
   api('/api/health').then(h=>{state.tigerLive=!!h.tigerdata_configured;}).catch(()=>{});
-  initLocations();loadLive();loadSharedDeviceStatus();loadPlan();loadCalendar();loadGeminiStatus();initSms();
+  initLocations();loadLive();loadSharedDeviceStatus();loadPlan();loadCalendar();loadGeminiStatus();loadGoogleCalendarStatus();initSms();
+  const pending=saved('fieldy_calendar_pending');
+  if(pending)showFieldyCalendarProposal(pending);
+  const existingLocation=saved('location');
+  if(existingLocation&&Number.isFinite(+existingLocation.latitude)&&
+      Number.isFinite(+existingLocation.longitude)&&
+      !/^Demo\\b|^Test Farm\\b/i.test(existingLocation.label||'')){
+    api('/api/farm/location',{method:'POST',body:{latitude:existingLocation.latitude,
+      longitude:existingLocation.longitude,label:existingLocation.label||''}}).catch(()=>{});
+  }
 });
 // Poll every two seconds ONLY with TigerData. Legacy Vercel Blob must stay
 // on the 30-second cadence to protect limited cloud operation quotas.
