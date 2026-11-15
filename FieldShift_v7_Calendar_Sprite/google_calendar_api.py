@@ -78,6 +78,46 @@ class AddEvent(BaseModel):
     crop:str=Field(default='',max_length=70)
     note:str=Field(default='',max_length=240)
 
+def create_google_event(owner:str,event:AddEvent):
+    """Idempotently insert one confirmed event into the authenticated owner's
+    connected primary Google calendar. The request ID must be stable across retries.
+    Returns the same event ID after a Google 409 conflict."""
+    if not event.confirmed:
+        raise HTTPException(403,'Explicit farmer confirmation required')
+    if not oauth_ready():
+        raise HTTPException(503,'Google Calendar OAuth has not been configured')
+    try:
+        day=date.fromisoformat(event.date)
+    except ValueError as exc:raise HTTPException(400,'Invalid calendar date') from exc
+    if day < date.today()-timedelta(days=366) or day > date.today()+timedelta(days=1825):
+        raise HTTPException(400,'Calendar date out of supported range')
+    try:refresh=_saved_refresh_token(owner)
+    except Exception as exc:raise HTTPException(503,'Google Calendar connection unavailable') from exc
+    if not refresh:
+        raise HTTPException(409,'Connect Google Calendar before confirming a farm event')
+    token=_exchange({'client_id':os.environ['GOOGLE_OAUTH_CLIENT_ID'],
+                     'client_secret':os.environ['GOOGLE_OAUTH_CLIENT_SECRET'],
+                     'refresh_token':refresh,'grant_type':'refresh_token'}).get('access_token')
+    if not token:raise HTTPException(502,'Google Calendar access token could not be refreshed')
+    summary=KINDS[event.kind]+(' '+event.crop.strip() if event.crop.strip() else ' farm task')
+    nextday=(day+timedelta(days=1)).isoformat()
+    uid=hashlib.sha256((owner+':'+event.request_id).encode()).hexdigest()
+    event_id='c'+uid[:40]
+    payload={'id':event_id,'summary':summary,
+             'description':('Cropaganda farm calendar'+(' — '+event.note if event.note else '')),
+             'start':{'date':event.date},'end':{'date':nextday}}
+    try:
+        r=httpx.post('https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                     headers={'Authorization':'Bearer '+token},
+                     params={'sendUpdates':'none'},json=payload,timeout=18)
+    except httpx.HTTPError as exc:raise HTTPException(502,'Google Calendar could not be reached') from exc
+    if r.status_code==409:
+        return {'created':True,'already_exists':True,'event_id':event_id}
+    if not r.is_success:
+        raise HTTPException(502,'Google Calendar rejected the event; please reconnect if access expired')
+    return {'created':True,'event_id':event_id,'google_url':r.json().get('htmlLink')}
+
+
 def install_google_calendar_routes(app):
     @app.get('/api/google/status')
     def status(request:Request):
@@ -134,38 +174,4 @@ def install_google_calendar_routes(app):
 
     @app.post('/api/google/events')
     def insert_event(request:Request,event:AddEvent):
-        owner=_owner(request)
-        if not event.confirmed:
-            raise HTTPException(403,'Explicit farmer confirmation required')
-        if not oauth_ready():
-            raise HTTPException(503,'Google Calendar OAuth has not been configured')
-        try:
-            day=date.fromisoformat(event.date)
-        except ValueError as exc:raise HTTPException(400,'Invalid calendar date') from exc
-        if day < date.today()-timedelta(days=366) or day > date.today()+timedelta(days=1825):
-            raise HTTPException(400,'Calendar date out of supported range')
-        try:refresh=_saved_refresh_token(owner)
-        except Exception as exc:raise HTTPException(503,'Google Calendar connection unavailable') from exc
-        if not refresh:
-            raise HTTPException(409,'Connect Google Calendar before confirming a farm event')
-        token=_exchange({'client_id':os.environ['GOOGLE_OAUTH_CLIENT_ID'],
-                         'client_secret':os.environ['GOOGLE_OAUTH_CLIENT_SECRET'],
-                         'refresh_token':refresh,'grant_type':'refresh_token'}).get('access_token')
-        if not token:raise HTTPException(502,'Google Calendar access token could not be refreshed')
-        summary=KINDS[event.kind]+(' '+event.crop.strip() if event.crop.strip() else ' farm task')
-        nextday=(day+timedelta(days=1)).isoformat()
-        uid=hashlib.sha256((owner+':'+event.request_id).encode()).hexdigest()
-        event_id='c'+uid[:40]
-        payload={'id':event_id,'summary':summary,
-                 'description':('Cropaganda farm calendar'+(' — '+event.note if event.note else '')),
-                 'start':{'date':event.date},'end':{'date':nextday}}
-        try:
-            r=httpx.post('https://www.googleapis.com/calendar/v3/calendars/primary/events',
-                         headers={'Authorization':'Bearer '+token},
-                         params={'sendUpdates':'none'},json=payload,timeout=18)
-        except httpx.HTTPError as exc:raise HTTPException(502,'Google Calendar could not be reached') from exc
-        if r.status_code==409:
-            return {'created':True,'already_exists':True,'event_id':event_id}
-        if not r.is_success:
-            raise HTTPException(502,'Google Calendar rejected the event; please reconnect if access expired')
-        return {'created':True,'event_id':event_id,'google_url':r.json().get('htmlLink')}
+        return create_google_event(_owner(request),event)

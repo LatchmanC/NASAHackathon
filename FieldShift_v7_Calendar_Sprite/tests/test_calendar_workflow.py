@@ -47,7 +47,8 @@ class GoogleCalendarSecurityTests(unittest.TestCase):
             question='I want to plant strawberries tomorrow',
             client_today=day.isoformat(),model='fake-model',
             location={'latitude':40.5,'longitude':-73.5},
-            sensor_view='own',nasa_excerpt=[],upcoming_calendar_tasks=[])
+            sensor_view='own',nasa_excerpt=[],upcoming_calendar_tasks=[],
+            soil_view={},chat_history=[])
         request=SimpleNamespace(session={'user':{
             'sub':'auth0|test','mode':'auth0','email':'test@example.com'}})
         raw=json.dumps({'answer':'Good plan. Would you like it on both calendars?',

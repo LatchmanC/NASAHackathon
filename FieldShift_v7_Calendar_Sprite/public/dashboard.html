@@ -178,7 +178,7 @@
           </section></div>
         <section class="card crop-calendar section-gap" aria-label="Farm calendar">
           <div class="card" style="padding:15px;margin-bottom:18px">
-            <div class="card-heading"><div><h3>Google Calendar</h3><p class="muted">Connect your Google account to sync tasks you explicitly approve in Fieldy.</p></div>
+            <div class="card-heading"><div><h3>Google Calendar</h3><p class="muted">Connect your Google account to send new Farm Calendar tasks to your primary Google Calendar, or approve Fieldy suggestions.</p></div>
               <span class="data-badge" id="google-calendar-badge">Checking…</span></div>
             <div class="heading-actions">
               <button type="button" class="primary-btn" id="connect-google-calendar">Connect Google Calendar</button>
@@ -186,7 +186,7 @@
             </div>
             <p class="footnote" id="google-calendar-status">Checking Google Calendar connection…</p>
           </div>
-          <div class="card-heading calendar-heading"><div><h2>Farm calendar</h2><p class="muted">Track planting, watering, inspections, and harvest tasks. Planting dates from your crop list appear automatically.</p></div><span class="data-badge">Saved locally</span></div>
+          <div class="card-heading calendar-heading"><div><h2>Farm calendar</h2><p class="muted">Track planting, watering, inspections, and harvest tasks. Planting dates from your crop list appear automatically.</p></div><span class="data-badge" id="calendar-storage-label">Loading…</span></div>
           <div class="calendar-layout">
             <div class="calendar-main">
               <div class="calendar-toolbar"><button class="calendar-arrow" id="calendar-prev" aria-label="Previous month">‹</button><h3 id="calendar-label">Month</h3><button class="calendar-arrow" id="calendar-next" aria-label="Next month">›</button><button class="secondary-btn calendar-today" id="calendar-today">Today</button></div>
@@ -202,9 +202,13 @@
                 <label for="event-date">Date</label><input id="event-date" type="date" required>
                 <div class="columns2"><div><label for="event-type">Task</label><select id="event-type"><option value="planting">Planting</option><option value="watering">Watering</option><option value="harvest">Harvest</option><option value="fertilizing">Fertilizing</option><option value="inspection">Inspection</option><option value="other">Other</option></select></div><div><label for="event-crop">Crop (optional)</label><input id="event-crop" maxlength="70" placeholder="e.g. Tomato" list="crop-suggestions"><datalist id="crop-suggestions"></datalist></div></div>
                 <label for="event-note">Notes (optional)</label><input id="event-note" maxlength="240" placeholder="e.g. Check soil before watering">
-                <button type="submit" class="primary-btn">+ Save task</button>
+                <div class="google-task-sync-option" id="google-task-sync-option">
+                  <label for="google-task-sync-checkbox"><input id="google-task-sync-checkbox" type="checkbox" disabled> Also add to Google Calendar</label>
+                  <p class="footnote" id="google-task-sync-help">Checking your Google Calendar connection…</p>
+                </div>
+                <button type="submit" class="primary-btn" id="calendar-save-button">+ Save task</button>
               </form>
-              <p class="footnote">Calendar tasks are saved in this browser for the preview. They are not yet synced to TigerData.</p>
+              <p class="footnote" id="farm-calendar-storage-note">Authenticated farm tasks are saved in TigerData. Google sync creates an all-day event in your connected primary Google Calendar; deleting a farm task does not remove the Google event. Demo tasks stay in this browser.</p>
             </div>
           </div>
         </section>

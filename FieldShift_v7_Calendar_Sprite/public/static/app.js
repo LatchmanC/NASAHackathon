@@ -432,9 +432,37 @@ function showFieldyCalendarProposal(raw){
     (raw.crop?' · '+raw.crop:'')+' — '+prettyDay(raw.date);
   $('#fieldy-calendar-confirmation').classList.remove('hidden');
 }
+let googleCalendarConnected=false;
+function updateGoogleCalendarTaskControls(){
+  const checkbox=$('#google-task-sync-checkbox');
+  const option=$('#google-task-sync-option');
+  const connected=googleCalendarConnected&&farmCloudMode==='ready';
+  option.classList.toggle('hidden',farmCloudMode==='sample');
+  checkbox.disabled=!connected;
+  if(connected){
+    // Default ON on the first connected session; retain a farmer's explicit
+    // unchecked choice until the connection is removed.
+    if(checkbox.dataset.connected!=='yes')checkbox.checked=true;
+    checkbox.dataset.connected='yes';
+  }else{
+    checkbox.checked=false;
+    checkbox.dataset.connected='';
+  }
+  $('#google-task-sync-help').textContent=connected?
+    'Checked by default. Saves this task to TigerData and sends an all-day event to your connected primary Google Calendar. Uncheck to save only to Cropaganda.':
+    farmCloudMode==='sample'?'Demo Mode stores farm tasks in this browser only.':
+    'Connect Google Calendar above to send new farm tasks automatically.';
+  $('#calendar-storage-label').textContent=farmCloudMode==='ready'?'TigerData':farmCloudMode==='sample'?'Browser Demo':'Cloud unavailable';
+  if(farmCloudMode==='ready')$('#farm-calendar-storage-note').textContent=
+    'Farm tasks are saved in TigerData. Google Calendar events are created for connected and opted-in tasks. Deleting a task here does not remove its Google event.';
+  else if(farmCloudMode==='sample')$('#farm-calendar-storage-note').textContent=
+    'Demo calendar entries are simulated and stored in this browser only. No Google events are created.';
+}
 async function loadGoogleCalendarStatus(){
   const badge=$('#google-calendar-badge'),button=$('#connect-google-calendar');
   if(farmCloudMode==='sample'){
+    googleCalendarConnected=false;
+    updateGoogleCalendarTaskControls();
     badge.textContent='Demo only';
     $('#google-calendar-status').textContent='Google Calendar is unavailable in demo mode. Add simulated farm tasks below.';
     button.disabled=true;button.textContent='Unavailable in demo';
@@ -443,6 +471,9 @@ async function loadGoogleCalendarStatus(){
   }
   try{
     const r=await api('/api/google/status');
+    googleCalendarConnected=Boolean(r.connected);
+    updateGoogleCalendarTaskControls();
+    renderCalendar();
     badge.textContent=r.connected?'● Connected':r.configured?'Not connected':'Setup required';
     $('#google-calendar-status').textContent=r.message||'';
     button.disabled=!r.configured;
@@ -454,7 +485,10 @@ async function loadGoogleCalendarStatus(){
         'Google Calendar connection was not completed.',query.get('google_calendar')!=='connected');
       history.replaceState(null,'',location.pathname);
     }
-  }catch(e){badge.textContent='Unavailable';$('#google-calendar-status').textContent=e.message;}
+  }catch(e){
+    googleCalendarConnected=false;updateGoogleCalendarTaskControls();renderCalendar();
+    badge.textContent='Unavailable';$('#google-calendar-status').textContent=e.message;
+  }
 }
 async function askGemini(){
   const promptBox=$('#farm-question');
@@ -576,6 +610,7 @@ async function saveLocation(){
 // Farm calendar: manual tasks persist through the API. Crop planting dates
 // are derived from the crop list, so changing a planting date moves its marker.
 const calendarState={year:new Date().getFullYear(),month:new Date().getMonth(),selected:'',tasks:[]};
+let pendingCalendarSubmission=null;
 const calendarKinds={planting:'Planting',watering:'Watering',harvest:'Harvest',fertilizing:'Fertilizing',inspection:'Inspection',other:'Other'};
 function dateISO(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
 function todayISO(){const d=new Date();return dateISO(d.getFullYear(),d.getMonth(),d.getDate());}
@@ -618,7 +653,25 @@ function renderCalendar(){
     const dot=document.createElement('i');dot.className='event-dot '+event.kind;row.appendChild(dot);
     const desc=document.createElement('div');desc.className='calendar-event-description';
     const name=document.createElement('strong');name.textContent=(calendarKinds[event.kind]||'Task')+(event.crop?' · '+event.crop:'');desc.appendChild(name);
-    if(event.note){const note=document.createElement('small');note.textContent=event.note;desc.appendChild(note);}row.appendChild(desc);
+    if(event.note){const note=document.createElement('small');note.textContent=event.note;desc.appendChild(note);}
+    if(!event.derived&&event.google_event_id){
+      const synced=document.createElement('small');
+      synced.className='calendar-google-synced';
+      synced.textContent='✓ Google Calendar';desc.appendChild(synced);
+    }
+    row.appendChild(desc);
+    if(!event.derived&&googleCalendarConnected&&farmCloudMode==='ready'&&!event.google_event_id){
+      const sync=document.createElement('button');
+      sync.type='button';sync.className='secondary-btn calendar-google-retry';
+      sync.textContent='Send to Google';sync.title='Send this saved task to your connected Google Calendar';
+      sync.onclick=async()=>{
+        sync.disabled=true;sync.textContent='Syncing…';
+        try{await syncFarmTaskWithGoogle(event.id);showToast('Task added to your Google Calendar.');}
+        catch(e){showToast('Google Calendar sync failed: '+e.message+'. You can retry safely.',true);}
+        finally{sync.disabled=false;sync.textContent='Send to Google';}
+      };
+      row.appendChild(sync);
+    }
     if(!event.derived){const remove=document.createElement('button');remove.className='calendar-remove';remove.textContent='×';remove.title='Delete task';remove.setAttribute('aria-label','Delete task');remove.onclick=()=>deleteCalendarEvent(event.id);row.appendChild(remove);}
     list.appendChild(row);
   });
@@ -626,13 +679,67 @@ function renderCalendar(){
   collectPlan().crops.forEach(c=>{const option=document.createElement('option');option.value=c.name;suggestions.appendChild(option);});
 }
 async function loadCalendar(){try{const r=await api('/api/calendar');calendarState.tasks=r.events||[];renderCalendar();}catch(e){showToast('Calendar unavailable: '+e.message,true);}}
-async function addCalendarEvent(e){e.preventDefault();
-  const payload={date:$('#event-date').value,kind:$('#event-type').value,crop:$('#event-crop').value.trim(),note:$('#event-note').value.trim()};
-  try{const r=await api('/api/calendar',{method:'POST',body:payload});calendarState.tasks=r.events;calendarState.selected=payload.date;
-    const parts=payload.date.split('-').map(Number);calendarState.year=parts[0];calendarState.month=parts[1]-1;
-    $('#event-note').value='';renderCalendar();showToast('Calendar task saved.');}catch(err){showToast(err.message,true);}
+async function syncFarmTaskWithGoogle(id){
+  if(farmCloudMode!=='ready'||!googleCalendarConnected)
+    throw Error('Connect Google Calendar to a verified account before syncing.');
+  // Google uses this saved farm task's ID as its idempotency request ID.
+  // Retrying is safe even if a previous Google request timed out.
+  const r=await api('/api/farm/calendar/'+encodeURIComponent(id)+'/google-sync',{
+    method:'POST',body:{confirmed:true},timeout:36000});
+  if(!r.synced||!Array.isArray(r.events))throw Error('Google Calendar did not confirm the task.');
+  farmCloudSections.calendar={value:r.events,revision:r.revision,present:true};
+  calendarState.tasks=r.events;
+  renderCalendar();
+  return r;
 }
-async function deleteCalendarEvent(id){try{const r=await api('/api/calendar/'+encodeURIComponent(id),{method:'DELETE'});calendarState.tasks=r.events;renderCalendar();showToast('Task deleted.');}catch(e){showToast(e.message,true);}}
+async function addCalendarEvent(e){
+  e.preventDefault();
+  const button=$('#calendar-save-button');
+  if(button.disabled)return;
+  const formTask={date:$('#event-date').value,kind:$('#event-type').value,
+    crop:$('#event-crop').value.trim(),note:$('#event-note').value.trim()};
+  const signature=JSON.stringify(formTask);
+  // Reuse the same ID if a save response times out but the database succeeded.
+  if(!pendingCalendarSubmission||pendingCalendarSubmission.signature!==signature)
+    pendingCalendarSubmission={signature,id:crypto.randomUUID()};
+  const payload={...formTask,id:pendingCalendarSubmission.id};
+  const shouldSync=farmCloudMode==='ready'&&googleCalendarConnected&&
+    $('#google-task-sync-checkbox').checked;
+  button.disabled=true;button.textContent='Saving farm task…';
+  try{
+    const r=await api('/api/calendar',{method:'POST',body:payload});
+    pendingCalendarSubmission=null;
+    calendarState.tasks=r.events;calendarState.selected=payload.date;
+    const parts=payload.date.split('-').map(Number);
+    calendarState.year=parts[0];calendarState.month=parts[1]-1;
+    $('#event-note').value='';renderCalendar();
+    if(shouldSync){
+      button.textContent='Syncing Google Calendar…';
+      try{
+        await syncFarmTaskWithGoogle(payload.id);
+        showToast('Task saved in TigerData and added to Google Calendar.');
+      }catch(err){
+        showToast('Farm task SAVED in TigerData, but Google Calendar sync was not confirmed: '+
+          err.message+'. Use Send to Google on the task to retry.',true);
+      }
+    }else{
+      showToast(farmCloudMode==='sample'?'Demo task saved in this browser.':
+        googleCalendarConnected?'Task saved to TigerData (Google Calendar not selected).':
+        'Task saved to TigerData. Connect Google Calendar to sync it.');
+    }
+  }catch(err){showToast('Farm task was not confirmed as saved: '+err.message+
+    '. Retry with the same task details; duplicate tasks will not be created.',true);}
+  finally{button.disabled=false;button.textContent='+ Save task';}
+}
+async function deleteCalendarEvent(id){
+  const task=calendarState.tasks.find(e=>e.id===id);
+  if(task?.google_event_id&&!confirm('This deletes only the Cropaganda Farm Calendar task. Its Google Calendar event will remain. Continue?'))return;
+  try{
+    const r=await api('/api/calendar/'+encodeURIComponent(id),{method:'DELETE'});
+    calendarState.tasks=r.events;renderCalendar();showToast('Farm task deleted'+
+      (task?.google_event_id?' (Google Calendar event remains).':'.'));
+  }catch(e){showToast(e.message,true);}
+}
 function moveCalendarMonth(change){const d=new Date(calendarState.year,calendarState.month+change,1);calendarState.year=d.getFullYear();calendarState.month=d.getMonth();renderCalendar();}
 
 
@@ -845,6 +952,7 @@ async function loadAccount(){
       $('#sensor-view').value=saved('sensor_view','auto');
       farmCloudMode=data.user?.mode==='sample'?'sample':'loading';
       const demo=farmCloudMode==='sample';
+      updateGoogleCalendarTaskControls();
       $('#demo-mode-banner').classList.toggle('hidden',!demo);
       $('#device-pair-panel').classList.toggle('hidden',demo);
       if(demo){
@@ -863,6 +971,7 @@ async function loadAccount(){
       $('#farm-cloud-refresh').classList.toggle('hidden',farmCloudMode==='sample');
       if(demo)cloudNotice('SIMULATED DEMO · Farm data stays in this browser; no TigerData access.');
       else await loadFarmCloud();
+      updateGoogleCalendarTaskControls();
       account.textContent='Signed in: '+(data.user?.name||data.user?.email||'Farmer')+' · ';
       const link=document.createElement('a');link.href='/auth/logout';link.textContent='Sign out';account.appendChild(link);
     }else{fsAccount='preview';account.textContent='Public preview · Browser-only farm plan';}

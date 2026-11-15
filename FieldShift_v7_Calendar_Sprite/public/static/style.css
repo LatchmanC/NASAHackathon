@@ -94,3 +94,12 @@
 .demo-mode-banner span{flex:1;min-width:175px}
 .demo-mode-banner a{color:#6b4c19;font-weight:700;text-decoration:underline}
 @media(max-width:700px){.demo-mode-banner{align-items:flex-start}}
+
+/* Optional Google Calendar export for authenticated farm tasks. */
+.google-task-sync-option{border:1px solid var(--border,#dbe6db);border-radius:10px;padding:10px 12px;margin:9px 0 13px;background:var(--surface,#f8fbf8)}
+.google-task-sync-option label{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:650;cursor:pointer}
+.google-task-sync-option input[type=checkbox]{width:17px;height:17px;flex:none;accent-color:#237b4c}
+.google-task-sync-option .footnote{margin:5px 0 0 26px;font-size:11px;line-height:1.5}
+.calendar-google-synced{display:block;color:#207448;font-size:11px;margin-top:4px}
+.calendar-google-retry{flex:none;padding:5px 8px;font-size:11px;white-space:nowrap}
+@media(max-width:650px){.calendar-google-retry{white-space:normal}}
