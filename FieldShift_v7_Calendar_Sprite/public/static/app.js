@@ -231,17 +231,21 @@ async function loadGoogleCalendarStatus(){
   }catch(e){badge.textContent='Unavailable';$('#google-calendar-status').textContent=e.message;}
 }
 async function askGemini(){
-  const typed=$('#farm-question').value.trim();
+  const promptBox=$('#farm-question');
+  const typed=promptBox.value.trim();
   if(pendingFieldyCalendar&&/^(yes|yeah|yep|sure|confirm|add it|yes please|do it)[.!\s]*$/i.test(typed)){
+    promptBox.value='';
     await confirmFieldyCalendar();return;
   }
   if(pendingFieldyCalendar&&/^(no|nope|cancel|not now)[.!\s]*$/i.test(typed)){
+    promptBox.value='';
     dismissFieldyCalendar();return;
   }
   const btn=$('#ask-gemini');btn.disabled=true;btn.textContent='Fieldy is thinking…';
   const bubble=$('#advice-output');bubble.classList.add('thinking');bubble.textContent='🌱 Reviewing your question, crops, NASA history, weather and any ESP32 readings…';
   try{
-    const req={plan:collectPlan(),model:'gemini-3.5-flash-lite',question:$('#farm-question').value,weather_mode:'live'};
+    const req={plan:collectPlan(),model:'gemini-3.5-flash-lite',question:typed,weather_mode:'live'};
+    promptBox.value=''; // Clear immediately on submit; Gemini still receives the captured text.
     const r=await api('/api/plan/advice',{method:'POST',body:req,timeout:110000});
     if(!r.advice_structured)throw Error('Gemini returned an unexpected response.');
     bubble.innerHTML=renderFieldyAdvice(r.advice_structured);
