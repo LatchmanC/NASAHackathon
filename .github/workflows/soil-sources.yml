@@ -31,3 +31,22 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_soil*.py' -v
       - name: Check Python syntax
         run: python -m compileall -q soil_rotation_api.py soil_context_api.py prism_reference.py
+      - name: Check frontend JavaScript syntax
+        run: node --check public/static/soil-rotation.js
+      - name: Live USDA point diagnostic (non-blocking)
+        continue-on-error: true
+        run: |
+          python - <<'PY'
+          import soil_rotation_api as soil
+          for lat,lon in [(42.4439,-76.5019),(42.916,-77.512)]:
+              try:
+                  result=soil._query_usda(lat,lon)
+                  profile=result.get("profile") or {}
+                  print("point",lat,lon,"status",result.get("status"),
+                        "drainage",profile.get("drainage_class"),
+                        "mapunit",profile.get("mapunit_name"),
+                        "method",result.get("lookup_method"))
+              except Exception as exc:
+                  print("USDA live probe failed at",lat,lon,
+                        "reason",type(exc).__name__,str(exc)[:180])
+          PY
