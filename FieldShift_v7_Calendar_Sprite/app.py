@@ -215,7 +215,7 @@ def validate_plan(p):
 def plan_validate(payload:dict):
     try:p=validate_plan(payload)
     except ValueError as exc:raise HTTPException(400,str(exc))
-    return {'saved':False,'plan':p,'storage':'Browser-only in Vercel preview'}
+    return {'saved':False,'plan':p,'storage':'validation_only; signed-in clients save to TigerData using /api/farm/state/plan'}
 
 @app.get('/api/calendar')
 def calendar(): return {'events':[],'storage':'browser only'}
@@ -267,6 +267,10 @@ install_device_routes(app)
 install_history_routes(app)
 install_google_calendar_routes(app)
 install_farm_sync_routes(app)
+
+# Account-owned, revisioned farm profiles, calendars and rotation drafts in TigerData.
+from farm_profile_api import install_farm_profile_routes
+install_farm_profile_routes(app)
 
 # Text messages (Twilio): alerts, reminders, STATUS and Fieldy by SMS. See sms.py / TWILIO_SETUP.md
 from sms import install_sms_routes

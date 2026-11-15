@@ -1,3 +1,50 @@
+## Farm profiles, calendar and rotation drafts in TigerData (Nov 2026)
+
+Signed-in Cropaganda accounts use TigerData as the **primary** store for their
+farm plan (acreage, crops, planting dates and notes), farm location, manual
+calendar tasks and saved rotation drafts. Each account is isolated using a
+SHA-256 lookup key derived server-side from its verified Auth0 subject.
+
+**First visit after the upgrade:** Open **My Farm**. If this browser contains
+farm records from an earlier browser-only version, select **Import browser
+data into TigerData**. The old browser records stay as backups. Existing cloud
+plans and locations are never overwritten by an import; calendar tasks and
+rotation drafts are merged by ID without replacing stored entries. The import
+can be re-opened using **Import earlier browser data**. An explicit **Reload
+from TigerData** button refreshes cross-device changes; it warns that unsaved
+form edits will be lost.
+
+A saved plan, location or rotation must successfully complete its TigerData API
+write before the UI reports success. The server enforces optimistic revisions
+and rejects stale writes from another device (HTTP 409). Calendar operations
+are serialized in the database. If the production connection is unavailable,
+the user is warned and writes are refused instead of silently pretending
+browser data is saved. Demo/sample sessions stay browser-only and cannot
+access real farm documents.
+
+- API: `GET /api/farm/state`, `PUT /api/farm/state/{plan|location|rotation_scenarios|calendar}`,
+  `POST /api/farm/calendar`, `DELETE /api/farm/calendar/{id}`,
+  `POST /api/farm/import`. These require verified Auth0 sessions.
+- Schema: `cropoganda_farm_documents` in
+  `sql/cropoganda_tigerdata.sql`, created automatically on first authenticated
+  use if the database user has CREATE permission.
+- The existing `cropoganda_farm_locations` is updated atomically with location
+  saves so NASA POWER daily syncing still works.
+- Vercel project variable `TIGERDATA_DATABASE_URL` must be set in **Production**.
+  It is not exposed to JavaScript. Preview deployments without this variable
+  cannot perform real cloud writes.
+- This migration does **not** move historic sensor records, Google Calendar
+  events stored by Google, or downloaded NASA cache records: those already
+  have separate storage and access mechanisms. No previous browser data is
+  deleted automatically.
+
+Validation: `python -m unittest discover -s tests -p 'test_farm_profile_api.py' -v`.
+Deployment readiness cannot certify actual database permissions or a real
+signed-in write. Test the My Farm save/import flow with a verified account in
+Production after rollout.
+
+---
+
 ## Soil & Rotation data expansion — November 2026
 
 The **Data Sources** section is an internal subtab of the existing **Soil & Rotation** tab alongside Overview, Soil Map, Crop Guide, and Rotation Planner. It is not a separate application page.
