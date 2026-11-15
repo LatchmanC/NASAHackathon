@@ -94,7 +94,7 @@ function soilAttrRows(rows){
   '<div class="soil-attr"><span>'+soilTag(k)+'</span><strong>'+soilTag(v)+'</strong></div>').join('');
 }
 function soilShowContext(data){
- const c=data?.climate||{},t=data?.terrain||{},w=data?.water||{},p=data?.prism_reference||{};
+ const c=data?.climate||{},t=data?.terrain||{},w=data?.water||{},p=data?.prism_reference||{},cdl=data?.land_cover||{};
  const msg=(item, fallback)=>item?.status==='ok'?'Verified provider response · '+(item.source||'public source'):
   (item?.message||fallback);
  const set=(selector,value)=>{const el=soilEl(selector);if(el)el.innerHTML=value;};
@@ -120,6 +120,9 @@ function soilShowContext(data){
   ['Nearby reporting gauges',w.station_count],
   ...((w.readings||[]).slice(0,4).map(r=>[(r.station||'Gauge')+' · '+(r.parameter||'reading'),soilNum(r.value,2,' '+(r.unit||''))]))
  ]:[]));
+ setText('#soil-cdl-status',cdl.status==='ok'?'USDA Cropland Data Layer 30 m classifications; maps land cover, not exact farm cropping history.':(cdl.message||'USDA CDL sampling unavailable or not yet connected.'));
+ set('#soil-cdl-fields',soilAttrRows((cdl.samples||[]).map(x=>
+   [String(x.year)+' land cover',x.status==='ok'?(x.land_cover+' · code '+x.code):x.status==='unavailable'?'Provider unavailable':'No classification reported'])));
  setText('#soil-prism-status',p.status==='reference_only'?
   'Historical PRISM grid sample near '+p.location_name+', '+p.distance_from_farm_km+' km from selected point; NOT a farm observation.':
   p.message||'PRISM archive point not available near this location.');
@@ -133,7 +136,9 @@ function soilShowContext(data){
   ['2022 solar total',soilNum(p.year_2022?.solar_total_mj_m2_day,1,' MJ/m²/day')],
   ['2022 sloped solar radiation',soilNum(p.year_2022?.solar_slope_mj_m2_day,1,' MJ/m²/day')],
   ['2016 mean minimum',soilNum(p.year_2016?.min_temp_c,1,' °C')],
-  ['2016 mean maximum',soilNum(p.year_2016?.max_temp_c,1,' °C')]
+  ['2016 mean maximum',soilNum(p.year_2016?.max_temp_c,1,' °C')],
+  ['2016 dew point',soilNum(p.year_2016?.dewpoint_c,1,' °C')],
+  ['2016 sloped solar radiation',soilNum(p.year_2016?.solar_slope_mj_m2_day,1,' MJ/m²/day')]
  ]:[]));
  const sourceList=(data?.other_sources||[]);
  set('#soil-other-sources',sourceList.map(row=>
@@ -146,10 +151,13 @@ function soilRenderContext(){
  const p=soilState.profile?.status==='ok'?soilState.profile.profile:null;
  const m=soilState.smap?.status==='ok'?soilState.smap.latest:null;
  const climate=soilState.context?.climate;
+ const land=soilState.context?.land_cover;
+ const recentCdl=land?.samples?.find(r=>r.status==='ok');
  const details=[
   p?{title:'Published map unit',description:p.mapunit_name||'USDA map unit'}:{title:'Soil survey',description:'No confirmed USDA map-unit attributes loaded'},
   m?{title:'SMAP regional context',description:'Last quality-passing surface moisture sample: '+soilNum(m.soil_moisture_m3_m3*100,1,'% volume')+' ('+m.date+')'}:{title:'Satellite moisture',description:'Not yet available; no estimates substituted'},
-  climate?.status==='ok'?{title:'Historical regional climate',description:'NASA POWER mean air temperature '+soilNum(climate.annual_mean_air_temp_c,1,' °C')+'; annualized precipitation '+soilNum(climate.annual_equivalent_precip_mm,0,' mm')+'. Not current weather.'}:{title:'Historical regional climate',description:'NASA POWER regional climatology not available'}
+  climate?.status==='ok'?{title:'Historical regional climate',description:'NASA POWER mean air temperature '+soilNum(climate.annual_mean_air_temp_c,1,' °C')+'; annualized precipitation '+soilNum(climate.annual_equivalent_precip_mm,0,' mm')+'. Not current weather.'}:{title:'Historical regional climate',description:'NASA POWER regional climatology not available'},
+  recentCdl?{title:'USDA classified land cover',description:recentCdl.year+' · '+recentCdl.land_cover+' (30 m pixel, not confirmed planted crop).'}:{title:'USDA classified land cover',description:'No verified map-classification response available'}
  ];
  soilEl('#soil-crop-context').innerHTML='<div class="soil-crop-context">'+details.map(d=>'<div class="soil-context-item"><strong>'+soilTag(d.title)+'</strong>'+soilTag(d.description)+'</div>').join('')+'</div>'+
  (selected.length?'<p class="soil-note">Your crops: '+selected.map(c=>soilTag(c.name)).join(', ')+'. Explore the Crop Guide to compare their general requirements with the actual published soil properties above.</p>':
