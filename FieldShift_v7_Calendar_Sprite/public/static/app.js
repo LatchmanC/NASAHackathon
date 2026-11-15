@@ -1,4 +1,4 @@
-/* FieldShift 3-tab browser interface. No external JS dependencies. */
+/* Cropoganda 3-tab browser interface. No external JS dependencies. */
 'use strict';
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));

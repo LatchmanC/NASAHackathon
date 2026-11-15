@@ -1,4 +1,4 @@
-"""FieldShift Vercel edition. Stateless FastAPI; private data lives in browser only for preview.
+"""Cropoganda Vercel edition. Stateless FastAPI; private data lives in browser only for preview.
 No ESP32 feed/SQL until the actual device and TigerData integration is configured.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ from advisor_core import answer_question
 
 ROOT=Path(__file__).resolve().parent
 load_dotenv(ROOT/'.env',override=False)
-app=FastAPI(title='FieldShift — production demo', docs_url=None, redoc_url=None)
+app=FastAPI(title='Cropoganda — production demo', docs_url=None, redoc_url=None)
 # Vercel serves public/static separately from Python functions.
 static_dir = ROOT / 'public' / 'static'
 if static_dir.is_dir():
@@ -40,7 +40,7 @@ DEFAULT_PLAN={'total_area':5,'area_unit':'acres','notes':'','crops':[{'name':'To
 def home(): return FileResponse(ROOT/'public'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(): return {'ok':True,'service':'FieldShift','sensor_storage_configured':sensor_configured()}
+def health(): return {'ok':True,'service':'Cropoganda','sensor_storage_configured':sensor_configured()}
 
 @app.get('/api/overview')
 def overview(request:Request,view:str='auto'):

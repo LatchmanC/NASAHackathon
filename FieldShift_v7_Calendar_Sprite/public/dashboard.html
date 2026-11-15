@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#184b3a">
-  <title>FieldShift | Farm intelligence</title>
+  <title>Cropoganda | Farm intelligence</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div class="shell">
   <aside class="sidebar" aria-label="Main navigation">
-    <div class="brand"><span class="brandmark">✳</span><span><strong>FieldShift</strong><small>FARM INTELLIGENCE</small></span></div>
+    <div class="brand"><span class="brandmark">✳</span><span><strong>Cropoganda</strong><small>FARM INTELLIGENCE</small></span></div>
     <div class="sidetitle">DASHBOARD</div>
     <nav id="navigation">
       <button class="navitem active" data-tab="crops"><span class="navicon">❋</span>Crop Management</button>
@@ -27,7 +27,7 @@
     </header>
     <div class="page"><div class="preview-banner">FARM DASHBOARD · Farm plans and calendar are stored in this browser. Paired ESP32 readings are stored privately; TigerData sync is planned.</div>
       <section class="panel-tab" id="tab-crops">
-        <div class="heading-row"><div><div class="eyebrow">FARM SETUP + GEMINI</div><h1>Crop Management</h1><p class="subtitle">Tell FieldShift where your land is, how much area you have, and which crops you're growing.</p></div><span class="data-badge">Farming advisor</span></div>
+        <div class="heading-row"><div><div class="eyebrow">FARM SETUP + GEMINI</div><h1>Crop Management</h1><p class="subtitle">Tell Cropoganda where your land is, how much area you have, and which crops you're growing.</p></div><span class="data-badge">Farming advisor</span></div>
         <section class="card section-gap location-inline"><div class="card-heading"><div><h2>Farm location</h2><p class="muted">Used for NASA records, forecasts, and crop planning.</p></div><strong id="location-current">Not selected</strong></div>
           <div class="location-mode"><label><input type="radio" name="loc-mode" value="preset" checked> Country / State / City</label><label><input type="radio" name="loc-mode" value="coords"> Exact latitude / longitude</label></div>
           <div id="area-field" class="location-selects">
@@ -132,7 +132,7 @@
         <div class="card section-gap"><div class="card-heading"><h2>Recent daily values</h2><span class="data-badge" id="nasa-date-range">Source date range</span></div><div class="table-scroll"><table id="nasa-table"><thead><tr><th>Date</th><th>Mean °C</th><th>High °C</th><th>Low °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Rain mm</th><th>Solar MJ/m²</th><th>Wind m/s</th><th>Soil wetness</th></tr></thead><tbody><tr><td colspan="10">No NASA daily observations yet.</td></tr></tbody></table></div><p class="footnote">POWER is regional, not a sensor on your farm. Missing values are shown as —. NASA POWER is not a short-term forecast or a severe-weather warning service.</p></div>
         <div class="main-columns section-gap">
           <section class="card forecast-card"><div class="card-heading"><div><h2>Upcoming weather</h2><p class="muted">Forecast from a separate weather service</p></div><span class="data-badge">Live forecast</span></div><div id="weather-report" class="forecast-list">Loading…</div><p class="footnote" id="forecast-source"></p></section>
-          <section class="card alerts-card"><div class="card-heading"><div><h2>Severe weather warnings</h2><p class="muted">Official U.S. National Weather Service alerts where available</p></div><span class="icon-outline">⚠</span></div><div id="alert-section">Checking…</div><div id="local-flags"></div><p class="footnote">If alerts are unavailable, consult your local meteorological authority. FieldShift is not a life-safety warning system.</p></section>
+          <section class="card alerts-card"><div class="card-heading"><div><h2>Severe weather warnings</h2><p class="muted">Official U.S. National Weather Service alerts where available</p></div><span class="icon-outline">⚠</span></div><div id="alert-section">Checking…</div><div id="local-flags"></div><p class="footnote">If alerts are unavailable, consult your local meteorological authority. Cropoganda is not a life-safety warning system.</p></section>
         </div>
       </section>
     </div>
