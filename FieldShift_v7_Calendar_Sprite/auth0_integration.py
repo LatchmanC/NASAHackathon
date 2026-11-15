@@ -57,7 +57,7 @@ def install_auth(app: FastAPI):
         path=request.url.path
         # The Vercel public/ folder is served separately. ALL private APIs must
         # independently validate the signed session cookie.
-        public=path.startswith('/static/') or path in ('/','/api/health','/api/auth/me','/auth/login','/auth/callback','/auth/logout','/auth/demo','/auth/signup','/api/device/ingest','/api/device/validate','/api/twilio/sms','/api/sms/cron-reminders')
+        public=path.startswith('/static/') or path in ('/','/api/health','/api/auth/me','/auth/login','/auth/callback','/auth/logout','/auth/demo','/auth/signup','/api/device/ingest','/api/device/validate','/api/twilio/sms','/api/sms/cron-reminders','/api/nasa/cron-sync','/api/google/callback')
         if not conf['enabled'] and not conf['sample_enabled']:
             return await call_next(request)
         user=request.session.get('user')

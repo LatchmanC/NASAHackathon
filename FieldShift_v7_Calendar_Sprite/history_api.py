@@ -36,6 +36,13 @@ def install_history_routes(app):
                 'note':'Connect TigerData and run the SQL schema to enable cloud history.' if not tiger.enabled()
                        else 'Live readings updated on every accepted device upload; the first reading in each UTC 10-minute window is archived.'}
 
+    @app.get('/api/history/dates')
+    def available_dates(request:Request,view:str='auto'):
+        if not tiger.enabled():
+            raise HTTPException(503,'TigerData is not connected')
+        account,access=selected_account(request,view)
+        return {'dates':tiger.available_dates(account),'sensor_access':access,'date_basis':'UTC'}
+
     @app.get('/api/history/days')
     def days(request:Request,year:int,month:int,view:str='auto'):
         if not tiger.enabled():

@@ -19,6 +19,8 @@ from sensor_store import configured as sensor_configured, read_snapshot, age_sec
 from device_api import resolve_device_data
 from device_api import install_device_routes
 from history_api import install_history_routes
+from google_calendar_api import install_google_calendar_routes
+from farm_sync import install_farm_sync_routes
 from tigerdata_store import enabled as tiger_enabled, save_nasa as tiger_save_nasa
 from advisor_core import answer_question
 
@@ -221,6 +223,7 @@ class AdviceRequest(BaseModel):
     upcoming_calendar_tasks:list[dict]=Field(default_factory=list)
     weather_mode:str='live'
     sensor_view:str='auto'
+    client_today:str=''
 
 @app.post('/api/plan/advice')
 def farming_advice(req:AdviceRequest,request:Request):
@@ -232,6 +235,8 @@ from auth0_integration import install_auth
 AUTH_SETTINGS=install_auth(app)
 install_device_routes(app)
 install_history_routes(app)
+install_google_calendar_routes(app)
+install_farm_sync_routes(app)
 
 # Text messages (Twilio): alerts, reminders, STATUS and Fieldy by SMS. See sms.py / TWILIO_SETUP.md
 from sms import install_sms_routes

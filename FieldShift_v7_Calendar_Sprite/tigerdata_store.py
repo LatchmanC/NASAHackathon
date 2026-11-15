@@ -91,6 +91,18 @@ def new_share_version(owner):
     except Exception as exc:
         raise HTTPException(503,'Could not revoke shared access in TigerData') from exc
 
+def available_dates(owner):
+    """Only show dates with actual archived ESP32 measurements."""
+    try:
+        with _connection() as conn,conn.cursor() as cur:
+            cur.execute("""SELECT DISTINCT (bucket_at AT TIME ZONE 'UTC')::date AS day
+                           FROM cropoganda_sensor_history WHERE account_key=%s
+                           ORDER BY day DESC LIMIT 1200""",(_key(owner),))
+            return [row[0].isoformat() for row in cur.fetchall()]
+    except HTTPException:raise
+    except Exception as exc:
+        raise HTTPException(503,'Could not list saved TigerData dates') from exc
+
 def dates(owner,year,month):
     if not (2020<=year<=2100 and 1<=month<=12):
         raise HTTPException(400,'Invalid month')

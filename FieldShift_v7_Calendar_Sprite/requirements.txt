@@ -14,3 +14,6 @@ twilio>=9.0,<10
 
 # TigerData uses the PostgreSQL wire protocol. Imported only when configured.
 psycopg[binary]>=3.2,<4
+
+# Encrypt OAuth refresh tokens for confirmed Google Calendar event creation
+cryptography>=44,<48

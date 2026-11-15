@@ -5,7 +5,7 @@ allowed only as explicitly identified estimates with assumptions.
 """
 import json,os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
 from fastapi import HTTPException
 from sensor_store import age_seconds
 from device_api import resolve_device_data
@@ -58,6 +58,7 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
     sensor_status=('recent' if age is not None and age<900 else
                    'stale' if latest else 'not connected')
     context={
+        'farmer_local_date':req.client_today if isinstance(req.client_today,str) and len(req.client_today)==10 else datetime.now(timezone.utc).date().isoformat(),
         'user_question':question,
         'farm_plan':plan,
         'farm_location':location,
@@ -83,10 +84,17 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
         'Clearly distinguish measured data, forecasts, and estimates. Never invent live measurements, '
         'weather warnings, historical observations, or imply stale sensors are current. '
         'If exact dates/varieties are missing, give useful conditional guidance instead of just requesting details. '
-        'The response must be JSON ONLY with exactly three fields: '
+        'If the user expresses an intent to schedule a specific farm task on a date (e.g., plant strawberries tomorrow), '
+        'also propose a calendar task with kind, crop, date, and note. Never execute calendar changes yourself. '
+        'Use farmer_local_date to resolve tomorrow and today. '
+        'Present a direct question asking whether to put the task on the farm and Google calendars. '
+        'Do not propose scheduling for hypothetical questions or ordinary information requests. '
+        'The response must be JSON ONLY with exactly four fields: '
         'answer (2–7 concise paragraphs directly answering the farmer, plain text with newlines; not markdown), '
         'assumptions (0–4 short strings explaining important estimates), '
-        'source_notes (0–4 short strings naming evidence/limitations). '
+        'source_notes (0–4 short strings naming evidence/limitations), '
+        'calendar_proposal (null or object {kind: planting|watering|harvest|fertilizing|inspection|other, '
+        'crop: string, date: YYYY-MM-DD, note: string}). '
         'Your answer should be actionable, direct, and not formulaic. Data context: '
         +json.dumps(context,ensure_ascii=False,default=str))
     try:
@@ -95,7 +103,23 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
         if not isinstance(data,dict):raise ValueError('Gemini response must be JSON object')
         answer=str(data.get('answer','')).strip()[:7000]
         if not answer:raise ValueError('Empty response')
-        return {'advice_structured':{'answer':answer,
+        proposal=None
+        proposed=data.get('calendar_proposal')
+        if isinstance(proposed,dict) and proposed.get('kind') in ('planting','watering','harvest','fertilizing','inspection','other'):
+            try:
+                planned=date.fromisoformat(str(proposed.get('date','')))
+                today=date.fromisoformat(req.client_today) if req.client_today else datetime.now(timezone.utc).date()
+                # Model output is a suggestion. Resolve relative dates against the
+                # farmer's own local date, not server UTC time.
+                q=question.casefold()
+                if 'tomorrow' in q:planned=today+timedelta(days=1)
+                elif 'today' in q:planned=today
+                if today-timedelta(days=366)<=planned<=today+timedelta(days=1825):
+                    proposal={'kind':proposed['kind'],'crop':str(proposed.get('crop',''))[:70],
+                              'date':planned.isoformat(),'note':str(proposed.get('note',''))[:240]}
+            except (ValueError,TypeError):
+                pass
+        return {'calendar_proposal':proposal,'advice_structured':{'answer':answer,
                   'assumptions':[str(x)[:250] for x in (data.get('assumptions') or [])[:4] if isinstance(x,str)],
                   'source_notes':[str(x)[:250] for x in (data.get('source_notes') or [])[:4] if isinstance(x,str)]},
                 'provider':'gemini','model':default_model,
