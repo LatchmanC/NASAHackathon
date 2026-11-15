@@ -52,7 +52,7 @@ class SignupTests(unittest.TestCase):
         user=self.client.get('/api/auth/me').json()
         self.assertTrue(user['authenticated'])
         self.assertEqual(user['user']['email'],'newuser@example.com')
-        self.assertFalse(gemini_approved(user['user']))
+        self.assertTrue(gemini_approved(user['user']))
         self.assertEqual(self.client.get('/api/private').status_code,200)
     def test_unverified_user_cannot_join(self):
         FakeRemote.claims={**FakeRemote.claims,'email_verified':False}
@@ -66,10 +66,13 @@ class SignupTests(unittest.TestCase):
             c=TestClient(a,base_url='https://cropaganda.garden',follow_redirects=False)
             self.assertEqual(c.get('/auth/signup').headers['location'],'/?error=signup_unavailable')
             self.assertEqual(c.get('/auth/callback').status_code,403)
-    def test_paid_gemini_only_for_explicitly_approved_email(self):
-        self.assertFalse(gemini_approved({'mode':'auth0','email':'newuser@example.com'}))
-        self.assertTrue(gemini_approved({'mode':'auth0','email':'approved@example.com'}))
-        self.assertFalse(gemini_approved({'mode':'sample','email':'approved@example.com'}))
+    def test_gemini_for_every_verified_auth0_session_not_sample(self):
+        # The Auth0 callback issues sessions only for email_verified=True.
+        self.assertTrue(gemini_approved({'mode':'auth0','sub':'auth0|new123','email':'newuser@example.com'}))
+        self.assertTrue(gemini_approved({'mode':'auth0','sub':'auth0|old123','email':'approved@example.com'}))
+        self.assertFalse(gemini_approved({'mode':'sample','sub':'sample:test','email':'approved@example.com'}))
+        self.assertFalse(gemini_approved({'mode':'auth0','sub':'','email':'newuser@example.com'}))
+        self.assertFalse(gemini_approved({'mode':'auth0','sub':'auth0|fake','email':''}))
     def test_settings_exposes_signup(self):
         self.assertTrue(settings()['signup_enabled'])
         with patch.dict(os.environ,{'AUTH0_ALLOW_SIGNUPS':'0'}):

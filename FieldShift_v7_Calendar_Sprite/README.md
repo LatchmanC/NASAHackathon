@@ -1,10 +1,16 @@
+## Gemini access — verified Auth0 users (2026-11-14)
+
+Every registered user who has **verified their email** and signed in using Auth0 can request real Gemini advice. The separate public `test / test` sample login remains restricted to fixed sample advice. There is no required `AUTH0_ALLOWED_EMAILS` entry for Gemini. Because there is no durable quota backend yet, monitor paid Gemini usage and set account/project spending safeguards before broad advertising.
+
+---
+
 # FieldShift v11 — Production login + sample profile
 
 **Live production**: https://cropaganda.garden
 
 - The public home page is a login screen. Real users use Auth0 Universal Login; the temporary **test / test** credentials open a **fictional sample-only** profile using a signed server-side cookie. This is a demonstration, not a secure password.
 - Sample account: crop plan, editable calendar, fictional sensor metrics clearly marked synthetic, live NASA POWER historical downloads, live Open-Meteo forecasts and official NWS alerts where supported. Fieldy displays **sample advice only** in this account and makes **no Gemini API call**, so the public test credentials cannot incur AI charges.
-- Auth0 users: self-registration uses Auth0 Universal Login. Newly registered users verify their email, then access the dashboard; crop plans/calendar use per-browser storage until TigerData exists. The `AUTH0_ALLOWED_EMAILS` list restricts paid Gemini calls, not account creation; other verified accounts receive starter Fieldy guidance. Do not use browser storage for sensitive farm details.
+- Auth0 users: self-registration uses Auth0 Universal Login. Newly registered users verify their email, then access the dashboard; crop plans/calendar use per-browser storage until TigerData exists. Every signed-in, email-verified Auth0 account can request real Gemini advice. No manual email allowlist is required for Gemini. Do not use browser storage for sensitive farm details.
 - ESP32 device upload and TigerData have **not been implemented**. Sensor data outside the sample account is honestly shown as disconnected.
 - All `/api/*` endpoints except health and auth-status require a signed session when `AUTH0_ENABLED=1`.
 
@@ -21,10 +27,11 @@ AUTH0_CLIENT_ID=your-existing-client-id
 AUTH0_CLIENT_SECRET=your-existing-secret
 AUTH0_SECRET=your-existing-random-cookie-secret-32-chars-plus
 GEMINI_API_KEY=your-private-key
-AUTH0_ALLOWED_EMAILS=approved-account@example.com
 ```
 
-With `AUTH0_ALLOW_SIGNUPS=1`, newly registered Auth0 accounts with verified emails can enter the dashboard even when the allowlist is empty. `AUTH0_ALLOWED_EMAILS` now controls paid Gemini calls. Other verified users get starter Fieldy advice without paid API calls. Enable signups for the FieldShift application in the Auth0 database connection and configure email verification. With signup disabled, only allowlisted verified accounts can sign in. Never commit .env files or keys.
+With `AUTH0_ALLOW_SIGNUPS=1`, all registered Auth0 accounts with verified emails can enter the dashboard and call Gemini; no manual allowlist is required. The public sample user continues to receive fixed advice without Gemini. Configure the Auth0 database connection to allow signups and verify emails. If signups are disabled, `AUTH0_ALLOWED_EMAILS` still controls which verified accounts may sign in.
+
+**Usage and billing warning:** This release has no persistent per-user Gemini quota or rate limiting. Every verified registrant can consume API credits. Configure cost alerts and limits with Google AI Studio / Google Cloud and add durable account-level quotas before scaling. Do not claim that the Auth0 login alone enforces request limits. Never commit .env files or keys.
 
 Set Auth0 Regular Web Application URLs:
 - Signup: `https://cropaganda.garden/auth/signup` (Auth0 hosted sign-up)

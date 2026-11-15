@@ -165,7 +165,7 @@ async function askGemini(){
   finally{bubble.classList.remove('thinking');btn.disabled=false;btn.textContent='✦ Ask Fieldy for advice';}
 }
 
-async function loadGeminiStatus(){try{const s=await api('/api/gemini/status');$('#advisor-key-status').textContent=s.mode==='sample'?'● Sample Fieldy advice · No Gemini call':s.configured?'● Gemini ready · Approved Auth0 account':'○ Gemini requires an approved Auth0 account';}catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}}
+async function loadGeminiStatus(){try{const s=await api('/api/gemini/status');$('#advisor-key-status').textContent=s.mode==='sample'?'● Sample Fieldy advice · No Gemini call':s.configured?'● Gemini ready · Verified Auth0 account':'○ '+(s.note||'Gemini unavailable');}catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}}
 
 function fillSelect(element, values, placeholder) {
   const select = $(element);
