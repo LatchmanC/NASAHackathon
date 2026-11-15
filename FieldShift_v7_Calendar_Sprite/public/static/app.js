@@ -15,18 +15,13 @@ function fixed(v,n=1){return v===null||v===undefined||v===''||!Number.isFinite(+
 function localTime(t){if(!t)return 'Never';const d=new Date(t);return Number.isNaN(d.getTime())?String(t):d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
 function showToast(text,isError=false){const t=$('#toast');t.textContent=text;t.classList.remove('hidden');t.classList.toggle('error',isError);clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>t.classList.add('hidden'),6000);}
 // Verified Auth0 farm documents are loaded from TigerData, with old localStorage
-// used for a safe one-time automatic migration and backup. Sample accounts remain local.
+// kept only as an opt-in migration source/backup. Sample accounts remain local.
 // This account-aware prefix is for legacy records, not an authorization boundary.
 let fsAccount='preview';
 const fsKey=k=>'fieldshift_v9_'+fsAccount+'_'+k;
 const farmKeys=['plan','location','calendar','rotation_scenarios'];
 let farmCloudMode='loading';
 let farmCloudSections={};
-let farmCloudLastChecked=0;
-let farmCloudRefreshing=false;
-let farmCloudBusy=0;
-let farmPlanDirty=false;
-let farmLocationDirty=false;
 function legacyValue(k,fallback=null){
   try{const raw=localStorage.getItem(fsKey(k));return raw===null?fallback:JSON.parse(raw);}
   catch{return fallback;}
@@ -45,15 +40,11 @@ async function persist(k,v){
   if(farmKeys.includes(k)){
     if(farmCloudMode==='ready'){
       const previous=farmCloudSections[k]||{revision:0};
-      farmCloudBusy++;
-      try{
-        const result=await api('/api/farm/state/'+encodeURIComponent(k),{
-          method:'PUT',body:{value:v,expected_revision:previous.revision||0},timeout:22000
-        });
-        farmCloudSections[k]={value:result.value,revision:result.revision,present:true};
-        farmCloudLastChecked=Date.now();
-        return result;
-      }finally{farmCloudBusy--;}
+      const result=await api('/api/farm/state/'+encodeURIComponent(k),{
+        method:'PUT',body:{value:v,expected_revision:previous.revision||0},timeout:22000
+      });
+      farmCloudSections[k]={value:result.value,revision:result.revision,present:true};
+      return result;
     }
     if(farmCloudMode!=='sample')throw Error('TigerData is unavailable. Farm changes were NOT saved; refresh and retry.');
   }
@@ -89,124 +80,23 @@ function showFarmImportOffer(){
     'This browser has older '+candidateKeys.map(x=>x.replaceAll('_',' ')).join(', ')+' data. Import it into your account without replacing existing cloud farm plans or locations.':
     'No earlier browser data was found.';
 }
-// The old browser keys are migrated once, not on every refresh, so deleting a
-// cloud calendar task cannot resurrect a stale browser copy later.
-async function autoImportLegacyFarm(){
-  if(legacyValue('farm_cloud_import_ack')===true)return {imported:0,errors:[],skipped:true};
-  const candidates=browserImportCandidates();
-  const flags=legacyValue('farm_cloud_auto_imported_v1',{})||{};
-  const errors=[];
-  let imported=0;
-  // Prioritize the calendar; one invalid legacy section must not block it.
-  for(const key of ['calendar','plan','location','rotation_scenarios']){
-    if(!Object.prototype.hasOwnProperty.call(candidates,key)||flags[key])continue;
-    try{
-      const response=await api('/api/farm/import',{
-        method:'POST',body:{sections:{[key]:candidates[key]}},timeout:30000
-      });
-      if(!response.sections||!response.results?.[key])
-        throw Error('The import response was incomplete');
-      farmCloudSections=response.sections;
-      // Persist the one-time marker immediately after this section commits.
-      // Without writable browser storage, automatic import cannot safely be
-      // retried without reintroducing deleted old calendar events.
-      flags[key]=true;
-      localStorage.setItem(fsKey('farm_cloud_auto_imported_v1'),JSON.stringify(flags));
-      imported++;
-    }catch(err){
-      errors.push(key+': '+err.message);
-    }
-  }
-  if(!errors.length){
-    const remaining=Object.keys(candidates).some(key=>!flags[key]);
-    if(!remaining)localStorage.setItem(fsKey('farm_cloud_import_ack'),JSON.stringify(true));
-  }
-  return {imported,errors,skipped:false};
-}
-function farmSectionChanged(a,b){
-  return (a?.revision||0)!==(b?.revision||0) ||
-    Boolean(a?.present)!==Boolean(b?.present) ||
-    JSON.stringify(a?.value??null)!==JSON.stringify(b?.value??null);
-}
-function farmCloudLocationLabels(){
-  const loc=saved('location');
-  $('#location-label').textContent=loc?.label||'Farm location not selected';
-  $('#location-current').textContent=loc?.label||'Farm location not selected';
-}
 async function loadFarmCloud(){
   try{
     const result=await api('/api/farm/state',{timeout:22000});
     farmCloudSections=result.sections||{};
-    // Allow a legacy cloud-location registration to load before any migration.
-    const imported=await autoImportLegacyFarm();
     farmCloudMode='ready';
-    farmCloudLastChecked=Date.now();
-    farmCloudLocationLabels();
+    cloudNotice('● TigerData connected · Your farm data syncs across signed-in devices.');
     showFarmImportOffer();
-    if(imported.errors.length){
-      cloudNotice('⚠ Farm data loaded from TigerData, but old browser import needs attention: '+
-        imported.errors.join(' · ')+'. Your original browser records are safe.',true);
-    }else if(imported.imported){
-      cloudNotice('● TigerData connected · Automatically imported '+imported.imported+
-        ' previous farm data section(s), including any saved calendar. Originals kept as backup.');
-    }else{
-      cloudNotice('● TigerData connected · Farm and calendar data load automatically across devices.');
+    const loc=saved('location');
+    if(loc){
+      $('#location-label').textContent=loc.label;
+      $('#location-current').textContent=loc.label;
     }
   }catch(e){
     farmCloudMode='error';
-    cloudNotice('⚠ TigerData farm data unavailable: '+e.message+
-      '. Existing browser records are preserved, but changes cannot be saved.',true);
+    cloudNotice('⚠ TigerData farm data unavailable: '+e.message+'. Existing browser records are preserved, but changes cannot be saved.',true);
     showToast('Farm cloud storage is unavailable. No farm changes will be saved until it reconnects.',true);
   }
-}
-// Called when opening My Farm/Soil & Rotation, returning to the app, and on
-// an interval while visible. Dirty forms are never overwritten by a poll.
-async function refreshFarmCloud(force=false){
-  if(farmCloudRefreshing||farmCloudBusy||farmCloudMode!=='ready'||
-     (!force&&Date.now()-farmCloudLastChecked<30000))return;
-  farmCloudRefreshing=true;
-  try{
-    const result=await api('/api/farm/state',{timeout:22000});
-    if(farmCloudBusy)return;
-    const previous=farmCloudSections;
-    const next={...result.sections};
-    const changed=[];
-    let dirtyConflict=false;
-    for(const key of farmKeys){
-      if(!farmSectionChanged(previous[key],next[key]))continue;
-      if((key==='plan'&&farmPlanDirty)||(key==='location'&&farmLocationDirty)){
-        next[key]=previous[key];
-        dirtyConflict=true;
-      }else changed.push(key);
-    }
-    farmCloudSections=next;
-    farmCloudLastChecked=Date.now();
-    if(changed.includes('plan'))await loadPlan();
-    if(changed.includes('calendar')){
-      await loadCalendar();
-      smsSync();
-    }
-    if(changed.includes('location')){
-      farmCloudLocationLabels();
-      await initLocations();
-      if(typeof soilLoad==='function'&&state.tab==='soil')soilLoad(true);
-    }
-    if(changed.includes('rotation_scenarios')&&typeof soilRenderRotation==='function')
-      soilRenderRotation();
-    if(changed.includes('plan')&&typeof soilRenderContext==='function')
-      soilRenderContext();
-    if(dirtyConflict){
-      cloudNotice('⚠ Another device changed your farm while you have unsaved edits. '+
-        'Your edits were preserved; save may report a conflict. Reload to review cloud data.',true);
-    }else{
-      cloudNotice('● TigerData synced · Farm and calendar load automatically. '+
-        new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}));
-    }
-  }catch(e){
-    farmCloudLastChecked=Date.now();
-    cloudNotice('⚠ Could not refresh TigerData: '+e.message+
-      '. Last loaded cloud data is still shown.',true);
-  }finally{farmCloudRefreshing=false;}
 }
 async function importBrowserFarmData(){
   const btn=$('#farm-import-button');
@@ -217,8 +107,6 @@ async function importBrowserFarmData(){
     const result=await api('/api/farm/import',{method:'POST',body:{sections},timeout:30000});
     farmCloudSections=result.sections;
     localStorage.setItem(fsKey('farm_cloud_import_ack'),JSON.stringify(true));
-    farmCloudLastChecked=Date.now();
-    farmCloudLocationLabels();
     $('#farm-import-banner').classList.add('hidden');
     const actions=Object.entries(result.results||{}).map(([key,value])=>key+': '+value.action);
     cloudNotice('● TigerData import complete · '+actions.join(' · ')+'. Browser originals retained.');
@@ -237,14 +125,10 @@ async function api(path,opts={}){
   if(path==='/api/calendar'&&farmCloudMode==='ready'){
     if(method==='GET')return {events:saved('calendar',[]),storage:'TigerData'};
     if(method==='POST'){
-      farmCloudBusy++;
-      try{
-        const result=await api('/api/farm/calendar',{method:'POST',body:opts.body||{},timeout:22000});
-        farmCloudSections.calendar={value:result.events,revision:result.revision,present:true};
-        farmCloudLastChecked=Date.now();
-        smsSync();
-        return result;
-      }finally{farmCloudBusy--;}
+      const result=await api('/api/farm/calendar',{method:'POST',body:opts.body||{},timeout:22000});
+      farmCloudSections.calendar={value:result.events,revision:result.revision,present:true};
+      smsSync();
+      return result;
     }
   }
   if(path==='/api/calendar'&&farmCloudMode!=='sample')
@@ -263,14 +147,10 @@ async function api(path,opts={}){
   }
   if(path.startsWith('/api/calendar/')&&method==='DELETE'&&farmCloudMode==='ready'){
     const id=decodeURIComponent(path.split('/').pop());
-    farmCloudBusy++;
-    try{
-      const result=await api('/api/farm/calendar/'+encodeURIComponent(id),{method:'DELETE',timeout:22000});
-      farmCloudSections.calendar={value:result.events,revision:result.revision,present:true};
-      farmCloudLastChecked=Date.now();
-      smsSync();
-      return result;
-    }finally{farmCloudBusy--;}
+    const result=await api('/api/farm/calendar/'+encodeURIComponent(id),{method:'DELETE',timeout:22000});
+    farmCloudSections.calendar={value:result.events,revision:result.revision,present:true};
+    smsSync();
+    return result;
   }
   if(path.startsWith('/api/calendar/')&&method==='DELETE'&&farmCloudMode!=='sample')
     throw Error('TigerData calendar unavailable. Task was not deleted.');
@@ -309,7 +189,7 @@ async function api(path,opts={}){
   finally{clearTimeout(timer);}
 }
 
-function tab(name){state.tab=name;$('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.tab===name));$('.panel-tab').forEach(n=>n.classList.toggle('hidden',n.id!==`tab-${name}`));$('.sidebar').classList.remove('open');if(name==='live')loadLive();if(name==='nasa')loadNASA();if(name==='history')initArchive();if(name==='crops'&&!state.plan)loadPlan();if(name==='crops'||name==='soil')refreshFarmCloud();}
+function tab(name){state.tab=name;$$('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.tab===name));$$('.panel-tab').forEach(n=>n.classList.toggle('hidden',n.id!==`tab-${name}`));$('.sidebar').classList.remove('open');if(name==='live')loadLive();if(name==='nasa')loadNASA();if(name==='history')initArchive();if(name==='crops'&&!state.plan)loadPlan();}
 let loadingLive=false;
 let lastLivePoll=0;
 async function loadLive(){
@@ -386,21 +266,15 @@ function updateAllocation(){const size=Number($('#farm-size').value)||0;
 }
 async function loadPlan(){try{const p=await api('/api/plan');state.plan=p;
   $('#farm-size').value=p.total_area??5;$('#area-unit').value=p.area_unit||'acres';$('#farm-notes').value=p.notes||'';
-  $('#crop-list').replaceChildren(...(p.crops||[]).map(c=>cropRow(c)));updateAllocation();renderCalendar();
-  farmPlanDirty=false;
-  if(farmCloudMode==='ready')$('#plan-save-status').textContent='Loaded from TigerData';
-} catch(e){showToast(e.message,true);}}
+  $('#crop-list').replaceChildren(...(p.crops||[]).map(c=>cropRow(c)));updateAllocation();renderCalendar();}
+  catch(e){showToast(e.message,true);}}
 function collectPlan(){return {total_area:Number($('#farm-size').value),area_unit:$('#area-unit').value,
   notes:$('#farm-notes').value,crops:$$('.crop-entry').map(el=>({name:el.querySelector('.crop-name').value.trim(),
     area:Number(el.querySelector('.crop-area').value),stage:el.querySelector('.crop-stage').value,
     planted_on:el.querySelector('.crop-date').value,variety:el.querySelector('.crop-variety').value.trim()}))};}
 async function savePlan(){try{const r=await api('/api/plan',{method:'POST',body:collectPlan()});
-  farmPlanDirty=false;
-  state.plan=r.plan;
-  $('#plan-save-status').textContent=farmCloudMode==='ready'?'Saved in TigerData':'Saved in sample browser storage';
-  showToast('Farm plan saved.');
-  if(typeof soilRenderContext==='function')soilRenderContext();
-} catch(e){showToast(e.message,true);}}
+  $('#plan-save-status').textContent=farmCloudMode==='ready'?'Saved in TigerData':'Saved in sample browser storage';showToast('Farm plan saved.');}
+  catch(e){showToast(e.message,true);}}
 function renderFieldyAdvice(a){
   // Escaped text only; no model-authored HTML is executed.
   const assumptions=(a.assumptions||[]).map(x=>`<li>${html(x)}</li>`).join('');
@@ -518,7 +392,7 @@ async function initLocations(){
     // Choose a useful default, but show the farm's previously saved selection when available.
     $('#country-select').value='US';updateRegions();
     $('#region-select').value='New York';updateCities();$('#city-select').value='New York City';
-    const location=saved('location')||(await api('/api/overview')).location;
+    const location=(await api('/api/overview')).location;
     if(location?.mode==='preset'){
       for(const [code,country] of Object.entries(state.locations)){
         let found=false;
@@ -560,7 +434,6 @@ async function saveLocation(){
     $('#location-message').textContent=farmCloudMode==='ready'?'Farm location saved in TigerData.':'Sample farm location saved in this browser.';
     state.nasa=null;
     if(farmCloudMode==='ready')$('#location-message').textContent='Farm location saved in TigerData and registered for automatic daily NASA POWER sync.';
-    farmLocationDirty=false;
     showToast('Farm location updated.');await loadLive();
   }catch(e){$('#location-message').textContent=e.message;showToast(e.message,true);}
   finally{btn.disabled=false;}
@@ -707,22 +580,11 @@ function attach(){
   $('#fetch-nasa').onclick=fetchNASA;$('#change-nasa-location').onclick=()=>tab('crops');
   $('#nasa-variable').onchange=renderNASAChart;$('#chart-days').onchange=renderNASAChart;
   $('#sensor-view').onchange=e=>{persist('sensor_view',e.target.value);loadLive();loadHistory();loadLocalDays();};
-  $('input[name="loc-mode"]').forEach(n=>n.addEventListener('change',()=>{farmLocationDirty=true;locationMode();}));
-  $('#area-field').addEventListener('change',()=>{farmLocationDirty=true;});
-  $('#coordinate-fields').addEventListener('input',()=>{farmLocationDirty=true;});
+  $$('input[name="loc-mode"]').forEach(n=>n.addEventListener('change',locationMode));
   $('#country-select').onchange=updateRegions;$('#region-select').onchange=updateCities;
   $('#save-location').onclick=saveLocation;
-  const markFarmDirty=()=>{
-    farmPlanDirty=true;
-    $('#plan-save-status').textContent='Unsaved farm changes';
-  };
-  $('#farm-size').addEventListener('input',markFarmDirty);
-  $('#farm-notes').addEventListener('input',markFarmDirty);
-  $('#area-unit').addEventListener('change',markFarmDirty);
-  $('#crop-list').addEventListener('input',markFarmDirty);
-  $('#crop-list').addEventListener('change',markFarmDirty);
   $('#farm-size').oninput=updateAllocation;$('#area-unit').onchange=updateAllocation;
-  $('#add-crop').onclick=()=>{$('#crop-list').appendChild(cropRow({name:'',area:1,stage:'Planning'}));markFarmDirty();updateAllocation();};
+  $('#add-crop').onclick=()=>{$('#crop-list').appendChild(cropRow({name:'',area:1,stage:'Planning'}));updateAllocation();};
   $('#save-farm').onclick=savePlan;$('#ask-gemini').onclick=askGemini;$('#pair-device').onclick=pairDevice;
   $('#fieldy-calendar-yes').onclick=confirmFieldyCalendar;
   $('#fieldy-calendar-no').onclick=dismissFieldyCalendar;
@@ -748,16 +610,14 @@ function attach(){
   });
   $('#farm-cloud-refresh').addEventListener('click',async()=>{
     if(farmCloudMode==='sample'){showToast('Sample farm data is stored in this browser.');return;}
-    if(farmCloudMode!=='ready'){await loadFarmCloud();}
-    else{
-      if((farmPlanDirty||farmLocationDirty)&&
-         !confirm('Discard unsaved farm edits and reload from TigerData?'))return;
-      farmPlanDirty=false;
-      farmLocationDirty=false;
-      farmCloudLastChecked=0;
-      await refreshFarmCloud(true);
+    if(!confirm('Reload your farm from TigerData? Unsaved edits on this page will be lost.'))return;
+    farmCloudMode='loading';
+    await loadFarmCloud();
+    if(farmCloudMode==='ready'){
+      await Promise.allSettled([loadPlan(),loadCalendar(),initLocations()]);
+      if(typeof soilLoad==='function')soilLoad(true);
+      showToast('Farm data refreshed from TigerData.');
     }
-    if(farmCloudMode==='ready')showToast('Farm and calendar refreshed from TigerData.');
   });
   $('#farm-import-skip').addEventListener('click',()=>{
     localStorage.setItem(fsKey('farm_cloud_import_ack'),JSON.stringify(true));
@@ -884,15 +744,6 @@ loadAccount().then(()=>{
   if(pending)showFieldyCalendarProposal(pending);
   // No browser-only location writes: location updates are committed atomically to TigerData.
 });
-// Refresh farm and calendar from TigerData when the app becomes active, and
-// once per minute while visible. Do not auto-fetch for sample/demo sessions.
-window.addEventListener('focus',()=>{if(document.visibilityState==='visible')refreshFarmCloud();});
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible')refreshFarmCloud();
-});
-setInterval(()=>{
-  if(document.visibilityState==='visible')refreshFarmCloud();
-},60000);
 // Poll every two seconds ONLY with TigerData. Legacy Vercel Blob must stay
 // on the 30-second cadence to protect limited cloud operation quotas.
 setInterval(()=>{
