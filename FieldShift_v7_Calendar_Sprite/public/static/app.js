@@ -31,13 +31,13 @@ async function api(path,opts={}){
       const ev=opts.body||{};
       if(!/^\d{4}-\d{2}-\d{2}$/.test(ev.date)||!['planting','watering','harvest','fertilizing','inspection','other'].includes(ev.kind)||events.length>=500)throw Error('Enter a valid date and task type (maximum 500 tasks).');
       const entry={id:crypto.randomUUID(),date:ev.date,kind:ev.kind,crop:String(ev.crop||'').slice(0,70),note:String(ev.note||'').slice(0,240)};
-      const next=[...events,entry].sort((a,b)=>a.date.localeCompare(b.date));persist('calendar',next);return {saved:true,events:next};
+      const next=[...events,entry].sort((a,b)=>a.date.localeCompare(b.date));persist('calendar',next);smsSync();return {saved:true,events:next};
     }
   }
   if(path.startsWith('/api/calendar/')&&method==='DELETE'){
     const id=decodeURIComponent(path.split('/').pop());const list=saved('calendar',[]),next=list.filter(x=>x.id!==id);
     if(next.length===list.length)throw Error('Task not found');
-    persist('calendar',next);return {deleted:true,events:next};
+    persist('calendar',next);smsSync();return {deleted:true,events:next};
   }
   if(path==='/api/nasa?mode=auto&days=90'){
     const c=saved('nasa');const loc=currentLocation();
@@ -57,7 +57,7 @@ async function api(path,opts={}){
     const r=await fetch(path,{method,headers:{'Content-Type':'application/json','X-FieldShift-Request':'1'},body:opts.body===undefined?undefined:JSON.stringify(opts.body),signal:ctl.signal,cache:'no-store'});
     const j=await r.json();if(!r.ok)throw Error(j.detail||j.error||`HTTP ${r.status}`);
     if(path==='/api/plan'&&method==='POST'&&j.plan)persist('plan',j.plan);
-    if(path==='/api/location'&&method==='POST'&&j.location){persist('location',j.location);localStorage.removeItem(fsKey('nasa'));}
+    if(path==='/api/location'&&method==='POST'&&j.location){persist('location',j.location);localStorage.removeItem(fsKey('nasa'));smsSync();}
     if(path.startsWith('/api/nasa?mode=real')&&j.nasa_daily?.is_real_nasa)persist('nasa',j.nasa_daily);
     if(path==='/api/overview')j.location=currentLocation();
     return j;
@@ -344,5 +344,25 @@ async function loadAccount(){
   }catch(e){console.warn('Account status unavailable',e);}
 }
 attach();
-loadAccount().then(()=>{initLocations();loadLive();loadPlan();loadCalendar();loadGeminiStatus();});
+// ---------- Text alerts (Twilio) ----------
+function smsPayload(){return {location:currentLocation(),calendar:saved('calendar',[])};}
+function smsResultText(r){const res=r.results||[];if(!res.length)return r.message||'Nothing to send.';const ok=res.filter(x=>x.sent).length;return ok===res.length?`Sent to ${res.map(x=>x.to).join(', ')}.`:'Not sent: '+(res.find(x=>!x.sent)?.error||'unknown error');}
+async function loadSmsStatus(){try{const s=await api('/api/sms/status');state.sms=s;
+  $('#sms-badge').textContent=!s.configured?'Not set up':s.linked_to_me?'● Linked':s.linked?'Linked to another account':'Not linked';
+  $('#sms-status').textContent=!s.configured?'Twilio is not configured on the server yet (see TWILIO_SETUP.md).':
+    `Texts go to ${s.recipients.join(', ')||'(no number set)'} from ${s.from_number}. `+(s.linked_to_me?`Your farm is linked; ${s.tasks_synced} calendar task(s) synced for automatic evening reminders.`:'Press "Link my farm to texts" so alerts, STATUS and reminders use your farm.');
+  $('#sms-link').textContent=s.linked_to_me?'Re-sync farm to texts':'Link my farm to texts';
+}catch(e){$('#sms-badge').textContent='Unavailable';$('#sms-status').textContent='Text messages unavailable: '+e.message;}}
+function smsSync(){if(state.sms?.linked_to_me)api('/api/sms/sync',{method:'POST',body:smsPayload()}).catch(()=>{});}
+async function smsAction(btn,path,body){const b=$(btn),label=b.textContent;b.disabled=true;b.textContent='Sending…';
+  try{const r=await api(path,{method:'POST',body:body??{},timeout:25000});showToast(path==='/api/sms/link'?`Farm linked. ${r.tasks_synced} calendar task(s) synced.`:(r.demo?'Demo alert: ':'')+smsResultText(r));await loadSmsStatus();}
+  catch(e){showToast(e.message,true);}finally{b.disabled=false;b.textContent=label;}}
+function initSms(){
+  $('#sms-link').addEventListener('click',()=>smsAction('#sms-link','/api/sms/link',smsPayload()));
+  $('#sms-test').addEventListener('click',()=>smsAction('#sms-test','/api/sms/test'));
+  $('#sms-alert').addEventListener('click',()=>smsAction('#sms-alert','/api/sms/demo-alert'));
+  $('#sms-remind').addEventListener('click',()=>smsAction('#sms-remind','/api/sms/remind-now',smsPayload()));
+  loadSmsStatus();
+}
+loadAccount().then(()=>{initLocations();loadLive();loadPlan();loadCalendar();loadGeminiStatus();initSms();});
 setInterval(()=>{if(state.tab==='live')loadLive();},30000);

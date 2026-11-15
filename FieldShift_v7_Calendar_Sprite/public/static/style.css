@@ -54,3 +54,5 @@
 .speech-bubble li em{display:block;font-style:normal;color:#6f8271;font-size:11px;margin-top:2px}
 .speech-bubble .fieldy-weather{margin:15px 0 0;font-weight:600}
 .speech-bubble .fieldy-note{margin:12px 0 0;padding-top:10px;border-top:1px solid #cfe4d3;color:#617e67;font-size:11px}
+
+.sms-actions{flex-wrap:wrap;gap:10px}

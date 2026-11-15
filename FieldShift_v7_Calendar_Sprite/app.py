@@ -218,3 +218,7 @@ def farming_advice(req:AdviceRequest,request:Request):
 from auth0_integration import install_auth
 AUTH_SETTINGS=install_auth(app)
 install_device_routes(app)
+
+# Text messages (Twilio): alerts, reminders, STATUS and Fieldy by SMS. See sms.py / TWILIO_SETUP.md
+from sms import install_sms_routes
+install_sms_routes(app, generate_gemini_reply, DEFAULT_GEMINI_MODEL, forecast)

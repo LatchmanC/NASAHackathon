@@ -67,6 +67,9 @@ def install_device_routes(app):
         row={'device_id':payload.device_id,'recorded_at':datetime.now(timezone.utc).isoformat()}
         row.update(payload.model_dump(exclude_none=True,exclude={'device_id'}))
         snap=save_snapshot(claims['sub'],row,old)
+        # Text the linked farm if this reading NEWLY crosses an alert rule (never fails the upload).
+        from sms import on_new_reading
+        on_new_reading(claims['sub'],row,last)
         return {'accepted':True,'received_at':row['recorded_at'],'stored_records':len(snap['readings']),
                 'min_interval_seconds':interval}
 

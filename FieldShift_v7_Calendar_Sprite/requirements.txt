@@ -9,3 +9,5 @@ truststore>=0.10
 google-genai>=1.0
 
 vercel-blob>=0.5,<0.6
+# Text messages (Twilio)
+twilio>=9.0,<10

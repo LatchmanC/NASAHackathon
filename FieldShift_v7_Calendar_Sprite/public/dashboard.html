@@ -79,6 +79,16 @@
             </div>
           </div>
         </section>
+        <section class="card section-gap" id="sms-panel" aria-label="Text message alerts">
+          <div class="card-heading"><div><h2>📱 Text alerts</h2><p class="muted">Get sensor alerts and calendar reminders by text, and text STATUS or any question to Fieldy. Powered by Twilio.</p></div><span class="data-badge" id="sms-badge">Checking…</span></div>
+          <div class="form-actions sms-actions">
+            <button class="primary-btn" id="sms-link" type="button">Link my farm to texts</button>
+            <button class="secondary-btn" id="sms-test" type="button">Send test text</button>
+            <button class="secondary-btn" id="sms-alert" type="button">Send test alert</button>
+            <button class="secondary-btn" id="sms-remind" type="button">Text tomorrow's tasks</button>
+          </div>
+          <p class="footnote" id="sms-status">Checking text message setup…</p>
+        </section>
       </section>
       <section class="panel-tab hidden" id="tab-live">
         <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Pair an ESP32 below to upload real sensor readings. Each signed-in farm gets its own private cloud records.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
