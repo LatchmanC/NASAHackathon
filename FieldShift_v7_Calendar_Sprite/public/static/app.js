@@ -159,6 +159,10 @@ async function api(path,opts={}){
     if(next.length===list.length)throw Error('Task not found');
     persist('calendar',next);smsSync();return {deleted:true,events:next};
   }
+  if(path==='/api/nasa?mode=auto&days=90'&&farmCloudMode==='sample'){
+    // Fetch only synthetic climate automatically in public demo.
+    return api('/api/nasa?mode=demo&days=90',{timeout:20000});
+  }
   if(path==='/api/nasa?mode=auto&days=90'){
     const c=saved('nasa');const loc=currentLocation();
     if(c&&c.latitude===loc.latitude&&c.longitude===loc.longitude)return {nasa_daily:c,note:'Saved in this browser'};
@@ -206,7 +210,7 @@ function updateLive(o){const stateEl=$('#sensor-state');stateEl.className='state
   $('#storage-type').textContent=o.sensor_source==='SYNTHETIC_SAMPLE'?'Sample data only':o.sensor_source==='ESP32_TIGERDATA'?'TigerData near-live':o.sensor_source==='ESP32_SHARED_READONLY'?'Shared cloud sensor feed':o.cloud_connected?'Private cloud sensor storage':'Cloud unavailable';$('#stored-count').textContent=o.cloud_record_count??'—';$('#last-cloud-sync').textContent=localTime(o.last_cloud_sync);
   renderFlags(o.flags||[]);
 }
-async function loadHistory(){try{const d=await api('/api/recorded?limit=100&offset=0');state.history=d.readings||[];const keys=['recorded_at','temperature_c','humidity_pct','pressure_hpa','soil_moisture_pct','rain_wetness_pct','light_pct','altitude_m'];$('#history-table tbody').innerHTML=state.history.length?state.history.map(r=>'<tr>'+keys.map((k,i)=>`<td>${i===0?html(easternTime(r[k])):fixed(r[k])}</td>`).join('')+'</tr>').join(''):'<tr><td colspan="8">No cloud records yet.</td></tr>';$('#history-note').textContent=`Showing ${state.history.length} latest cloud records; ${d.total||0} total.`;}catch(e){$('#history-note').textContent='Cloud receiver unavailable: '+e.message;}}
+async function loadHistory(){try{const d=await api('/api/recorded?limit=100&offset=0');state.history=d.readings||[];const keys=['recorded_at','temperature_c','humidity_pct','pressure_hpa','soil_moisture_pct','rain_wetness_pct','light_pct','altitude_m'];$('#history-table tbody').innerHTML=state.history.length?state.history.map(r=>'<tr>'+keys.map((k,i)=>`<td>${i===0?html(easternTime(r[k])):fixed(r[k])}</td>`).join('')+'</tr>').join(''):'<tr><td colspan="8">No cloud records yet.</td></tr>';$('#history-note').textContent=(farmCloudMode==='sample'?'SIMULATED DEMO · ':'')+`Showing ${state.history.length} example readings; ${d.total||0} total.`;}catch(e){$('#history-note').textContent='Cloud receiver unavailable: '+e.message;}}
 function exportCSV(){if(!state.history.length){showToast('There are no displayed readings to export.',true);return;}const columns=['recorded_at','device_id',...Object.keys(units).filter(key=>key!=='gas_index'&&key!=='ph')];const csv=[columns.join(','),...state.history.map(row=>columns.map(c=>'"'+String(row[c]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fieldshift_recent_readings.csv';a.click();URL.revokeObjectURL(url);showToast('Exported current history rows.');}
 function renderFlags(flags){const el=$('#local-flags');el.innerHTML=flags.length?'<div class="flags-title">LOCAL SENSOR FLAGS (NOT OFFICIAL WARNINGS)</div>'+flags.map(f=>`<div class="flag"><strong>${html(f.event)}</strong><small>${html(f.description)}</small></div>`).join(''):'';}
 async function loadWeather(){try{const data=await api('/api/weather?mode=live',{timeout:28000});const list=data.forecast||[];$('#weather-report').innerHTML=list.length?list.slice(0,5).map(d=>{const day=new Date(d.date+'T12:00:00Z').toLocaleDateString(undefined,{weekday:'short',timeZone:'UTC'});return `<div class="forecast-day"><strong>${html(day)}</strong><span class="weather-desc">${html(d.summary||'')}</span><span class="temp">${fixed(d.high_c,0)}° / ${fixed(d.low_c,0)}°</span><span class="rain">☂ ${fixed(d.rain_chance_pct,0)}%</span></div>`;}).join(''):'<div class="alert-unavailable">Forecast unavailable.</div>';$('#forecast-source').textContent=data.forecast_source||'';renderAlerts(data.alert_status||{});}catch(e){$('#weather-report').textContent='Forecast unavailable: '+e.message;$('#alert-section').textContent='Official alert status unavailable. Consult the relevant meteorological service.';}}
@@ -243,13 +247,13 @@ function renderNASA(note=''){const n=state.nasa,rows=n?.rows||[];if(!rows.length
   const rec=[...rows].reverse();const latest=rec[0]||{};const status=n.is_real_nasa?'REAL NASA POWER REGIONAL DATA':'SYNTHETIC NASA-LIKE DEMONSTRATION — NOT NASA DATA';$('#nasa-source').textContent=`${status} · ${n.period||''} · Downloaded ${localTime(n.fetched_at)}${note?' · '+note:''}`;$('#nasa-date-range').textContent=n.period||'';
   const cards=[['temperature_c','Daily air temp'],['temperature_max_c','Daily max'],['humidity_pct','Relative humidity'],['precipitation_mm','Daily rain'],['solar_mj_m2_day','Solar radiation'],['wind_2m_ms','Wind 2 m']];$('#nasa-metrics').innerHTML=cards.map(([key,label])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">◉</span></div><div class="metric-value">${fixed(latest[key])}<span class="metric-unit">${html(nasaInfo[key]?.[1]||'')}</span></div><div class="metric-hint">NASA day ${html(latest.date||'—')}</div></article>`).join('');
   const fields=['date','temperature_c','temperature_max_c','temperature_min_c','humidity_pct','pressure_hpa','precipitation_mm','solar_mj_m2_day','wind_2m_ms','soil_wetness_fraction'];$('#nasa-table tbody').innerHTML=rec.slice(0,18).map(r=>'<tr>'+fields.map((key,i)=>`<td>${i===0?html(r.date):fixed(r[key],key==='soil_wetness_fraction'?3:1)}</td>`).join('')+'</tr>').join('');renderNASAChart();}
-function renderNASAChart(){const n=state.nasa,rows=n?.rows||[],key=$('#nasa-variable').value;if(!rows.length)return;const count=Number($('#chart-days').value)||35,shown=rows.slice(-count),dates=shown.map(r=>r.date);const nasaValues=Object.fromEntries(shown.map(r=>[r.date,r[key]]));const ns={values:nasaValues,color:'#527cbb',dashed:true};const series=[ns];let legend='<span><b class="nasa"></b> NASA POWER daily regional data</span>',note='Regional estimates at NASA POWER grid scale. Values may lag current date.';
-  if(comparable[key]){const lv={};for(const d of dates){let x=state.localDays[d];if(x&&x[comparable[key]]!=null)lv[d]=x[comparable[key]];}if(Object.keys(lv).length){series.unshift({values:lv,color:'#24714f'});legend='<span><b></b> Local ESP32 daily average</span>'+legend;note+=' Local values are averaged by UTC day.';}}
+function renderNASAChart(){const n=state.nasa,rows=n?.rows||[],key=$('#nasa-variable').value;if(!rows.length)return;const count=Number($('#chart-days').value)||35,shown=rows.slice(-count),dates=shown.map(r=>r.date);const nasaValues=Object.fromEntries(shown.map(r=>[r.date,r[key]]));const ns={values:nasaValues,color:'#527cbb',dashed:true};const series=[ns];let legend=n?.is_real_nasa?'<span><b class="nasa"></b> NASA POWER daily regional data</span>':'<span><b class="nasa"></b> SIMULATED regional climate (demo)</span>',note=n?.is_real_nasa?'Regional estimates at NASA POWER grid scale. Values may lag current date.':'SIMULATED DEMO climate — no NASA observations were retrieved.';
+  if(comparable[key]){const lv={};for(const d of dates){let x=state.localDays[d];if(x&&x[comparable[key]]!=null)lv[d]=x[comparable[key]];}if(Object.keys(lv).length){series.unshift({values:lv,color:'#24714f'});legend='<span><b></b> '+(farmCloudMode==='sample'?'Simulated ESP32 values':'Local ESP32 daily average')+'</span>'+legend;note+=' Local values are averaged by UTC day.';}}
   else if(key==='soil_wetness_fraction')note='This NASA modeled soil wetness fraction is not a calibrated field moisture percentage.';
   else if(key==='precipitation_mm')note='NASA rainfall is a daily total; the rain detector measures wetness, not rainfall depth.';
   else if(key==='solar_mj_m2_day')note='NASA solar energy and the photoresistor light index have different units.';
   $('#nasa-chart').innerHTML='<div class="chart-legend">'+legend+'</div><div class="nasa-chart-wrap">'+plotSVG(series,dates)+'</div>';$('#nasa-comparison-note').textContent=note;}
-async function fetchNASA(){const b=$('#fetch-nasa');b.disabled=true;b.textContent='Downloading NASA…';try{const d=await api('/api/nasa?mode=real&days=90',{timeout:65000});state.nasa=d.nasa_daily||null;renderNASA();showToast('NASA POWER history downloaded and saved in this browser.');}catch(e){showToast('NASA download failed: '+e.message,true);}finally{b.disabled=false;b.textContent='Download latest NASA data';}}
+async function fetchNASA(){const b=$('#fetch-nasa');b.disabled=true;b.textContent=farmCloudMode==='sample'?'Refreshing demo…':'Downloading NASA…';try{const d=await api('/api/nasa?mode=real&days=90',{timeout:65000});state.nasa=d.nasa_daily||null;renderNASA(d.note||'');showToast(farmCloudMode==='sample'?'Simulated climate example refreshed.':'NASA POWER history downloaded and saved in this browser.');}catch(e){showToast('Climate download failed: '+e.message,true);}finally{b.disabled=false;b.textContent=farmCloudMode==='sample'?'Refresh simulated climate':'Download latest NASA data';}}
 function cropRow(c={}){const row=document.createElement('div');row.className='crop-entry';
   const stages=['Planning','Germination','Seedling','Vegetative','Flowering','Fruiting','Maturing','Harvested'];
   row.innerHTML=`<div class="crop-entry-heading"><span>Crop</span><button class="remove-crop" title="Remove crop">×</button></div>
@@ -327,7 +331,7 @@ function fieldyRenderConversation(pending=null,error=''){
   if(!entries.length)entries.push('<p class="fieldy-welcome">Hi, farmer! 🌱 Ask me about your crops, farm conditions, or the Soil &amp; Rotation guide. I can follow up on earlier questions in this tab.</p>');
   if(pending){
     entries.push(`<div class="fieldy-message fieldy-message-user"><div class="fieldy-message-label">You</div><div class="fieldy-message-content">${html(pending)}</div></div>`);
-    entries.push('<div class="fieldy-message fieldy-message-assistant thinking"><div class="fieldy-message-label">Fieldy · Gemini</div>Reviewing your question and available farm/soil information…</div>');
+    entries.push('<div class="fieldy-message fieldy-message-assistant thinking"><div class="fieldy-message-label">'+(farmCloudMode==='sample'?'Fieldy · Demo':'Fieldy · Gemini')+'</div>Reviewing your question and available farm/soil information…</div>');
   }
   if(error)entries.push(`<p class="fieldy-welcome" role="alert">${html(error)}</p>`);
   box.innerHTML=entries.join('');
@@ -455,7 +459,20 @@ async function askGemini(){
     showToast(e.message,true);
   }finally{btn.disabled=false;btn.textContent='✦ Ask Fieldy for advice';}
 }
-async function loadGeminiStatus(){try{const s=await api('/api/gemini/status');$('#advisor-key-status').textContent=s.mode==='sample'?'● Sample Fieldy advice · No Gemini call':s.configured?'● Gemini ready · Verified Auth0 account':'○ '+(s.note||'Gemini unavailable');}catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}}
+async function loadGeminiStatus(){
+  try{
+    const status=await api('/api/gemini/status');
+    if(status.mode==='sample'){
+      $('#advisor-key-status').textContent='Demo mode, key not available · Scripted sample advice only.';
+      const badge=$('.gemini-watermark');
+      badge.textContent='✦ Demo mode, key not available';
+      badge.setAttribute('aria-label','Demo mode. Gemini key unavailable to public demo accounts');
+      $('#ask-gemini').textContent='✦ Ask demo Fieldy';
+    }else{
+      $('#advisor-key-status').textContent=status.configured?'● Gemini ready · Verified Auth0 account':'○ '+(status.note||'Gemini unavailable');
+    }
+  }catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}
+}
 
 function fillSelect(element, values, placeholder) {
   const select = $(element);
@@ -475,7 +492,7 @@ async function initLocations(){
     // Choose a useful default, but show the farm's previously saved selection when available.
     $('#country-select').value='US';updateRegions();
     $('#region-select').value='New York';updateCities();$('#city-select').value='New York City';
-    const location=(await api('/api/overview')).location;
+    const location=saved('location')||(await api('/api/overview')).location;
     if(location?.mode==='preset'){
       for(const [code,country] of Object.entries(state.locations)){
         let found=false;
