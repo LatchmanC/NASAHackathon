@@ -2,7 +2,7 @@
 
 The test/test credentials are deliberately PUBLIC DEMO CREDENTIALS, not an
 Auth0 password and never grant the right to call Gemini or read real farm data.
-All real-user data endpoints require a verified Auth0 session. Public signup is optional and Gemini access is separately allowlisted.
+Private data endpoints require a verified Auth0 session. Public signup is optional; Gemini is available to verified Auth0 accounts.
 """
 from __future__ import annotations
 import hmac
@@ -61,6 +61,10 @@ def install_auth(app: FastAPI):
         if not conf['enabled'] and not conf['sample_enabled']:
             return await call_next(request)
         user=request.session.get('user')
+        # Retire any signed sample sessions when the public demo account is disabled.
+        if isinstance(user,dict) and user.get('mode')=='sample' and not conf['sample_enabled']:
+            request.session.clear()
+            user=None
         if not public and (not isinstance(user,dict) or not user.get('sub')):
             if path.startswith('/api/'):
                 return JSONResponse({'detail':'Please sign in to FieldShift.'},status_code=401)

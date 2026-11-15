@@ -73,6 +73,20 @@ class SignupTests(unittest.TestCase):
         self.assertFalse(gemini_approved({'mode':'sample','sub':'sample:test','email':'approved@example.com'}))
         self.assertFalse(gemini_approved({'mode':'auth0','sub':'','email':'newuser@example.com'}))
         self.assertFalse(gemini_approved({'mode':'auth0','sub':'auth0|fake','email':''}))
+    def test_retired_sample_cookie_cannot_access_private_api(self):
+        # A cookie created before retirement must stop working when demo is disabled.
+        with patch.dict(os.environ, {'FIELDSHIFT_SAMPLE_ACCOUNT':'1'}):
+            older=FastAPI()
+            install_auth(older)
+            client=TestClient(older,base_url='https://cropaganda.garden',follow_redirects=False)
+            login=client.post('/auth/demo',data={'username':'test','password':'test'})
+            self.assertEqual(login.status_code,303)
+            old_cookie=client.cookies.get('fieldshift_session')
+            self.assertTrue(old_cookie)
+        self.client.cookies.set('fieldshift_session',old_cookie)
+        self.assertEqual(self.client.get('/api/private').status_code,401)
+        self.assertFalse(self.client.get('/api/auth/me').json()['authenticated'])
+
     def test_settings_exposes_signup(self):
         self.assertTrue(settings()['signup_enabled'])
         with patch.dict(os.environ,{'AUTH0_ALLOW_SIGNUPS':'0'}):

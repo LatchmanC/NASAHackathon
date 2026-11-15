@@ -1,3 +1,9 @@
+## Current production login — Auth0 only
+
+The public `test / test` sample login has been retired. The login page offers only Auth0 sign-in and self-service registration. Set `FIELDSHIFT_SAMPLE_ACCOUNT=0` in the Vercel Production environment. The retired `/auth/demo` route rejects logins, and existing sample sessions are invalidated by authentication middleware. Verified Auth0 accounts retain Gemini, ESP32 pairing, NASA weather, and other existing capabilities.
+
+---
+
 ## FieldShift v14 — Direct Gemini answers and ESP32 cloud ingestion
 
 **Production:** https://cropaganda.garden
@@ -8,11 +14,10 @@ upcoming calendar tasks, server-fetched NASA POWER historical weather (or clearl
 browser cache when unavailable), live Open-Meteo forecast, official weather alerts, and
 real ESP32 readings available for your Auth0 account. Its answer includes assumptions and
 source limitations, and estimates are labeled rather than fabricated. 
-All email-verified Auth0 users can use the real model. Public `test/test` still receives
-**sample advice only**, not a paid API request. The key stays server-side.
+All email-verified Auth0 users can use the real model. The retired public sample login is disabled in production. The key stays server-side.
 
 ### ESP32 — First-time setup
-1. Sign in at https://cropaganda.garden with a **verified Auth0 account** (not test/test).
+1. Sign in at https://cropaganda.garden with a **verified Auth0 account**.
 2. Open **Live Sensor Data → Pair your ESP32**.
 3. Choose a device ID (e.g. `esp32-01`), press **Generate pairing token** and **Copy token**.
    Keep this token private. It authorizes *writes only* to your private sensor snapshot.

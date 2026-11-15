@@ -45,6 +45,15 @@ class SampleLoginTests(unittest.TestCase):
         r=self.client.post('/auth/demo',data={'username':'test','password':'test'},headers={'origin':'https://evil.example'})
         self.assertEqual(r.status_code,403)
         self.assertEqual(self.client.get('/api/private').status_code,401)
+    def test_retired_sample_login_is_disabled(self):
+        with patch.dict(os.environ, {'FIELDSHIFT_SAMPLE_ACCOUNT':'0'}):
+            a=FastAPI()
+            install_auth(a)
+            c=TestClient(a,base_url='http://127.0.0.1:8501',follow_redirects=False)
+            r=c.post('/auth/demo',data={'username':'test','password':'test'})
+            self.assertEqual(r.status_code,404)
+            self.assertFalse(c.get('/api/auth/me').json()['sample_available'])
+
     def test_auth_disabled_in_production_refused(self):
         with patch.dict(os.environ,{'AUTH0_ENABLED':'0','FIELDSHIFT_DEMO':'0'}):
             with self.assertRaises(RuntimeError):settings()

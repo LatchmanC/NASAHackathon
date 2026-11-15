@@ -5,20 +5,13 @@ body{margin:0;background:linear-gradient(125deg,#ecf6ee,#f8faf6);min-height:100v
 .login{width:min(440px,100%);background:white;border:1px solid var(--line);border-radius:24px;box-shadow:0 22px 65px #183c2617;padding:36px}
 .brand{display:flex;align-items:center;gap:13px;font-size:27px;font-weight:800;margin-bottom:33px}.icon{width:52px;height:52px;border-radius:16px;background:#e8f5ec;display:grid;place-items:center;font-size:29px}
 h1{margin:0;font-size:31px;letter-spacing:-1px}.sub{color:var(--mute);margin:10px 0 28px;line-height:1.5}
-label{display:block;font-size:13px;font-weight:750;margin:14px 0 7px}input{width:100%;border:1px solid #ccded0;border-radius:11px;padding:13px;font:inherit;outline-color:var(--green)}
-button,.action{display:block;width:100%;text-align:center;border:0;background:var(--green);color:white;padding:14px 16px;border-radius:11px;font:inherit;font-weight:750;text-decoration:none;cursor:pointer;margin-top:20px}.action{margin-top:10px;background:#eaf5ec;color:var(--dark);border:1px solid #c5ddcb}
-.divider{display:flex;align-items:center;gap:14px;color:var(--mute);font-size:12px;margin:24px 0 5px}.divider:before,.divider:after{content:"";height:1px;background:var(--line);flex:1}
-.warn{background:#fff5e4;border:1px solid #ffdfa3;border-radius:12px;padding:13px;color:#805d17;font-size:12px;line-height:1.5;margin-top:24px}
+button,.action{display:block;width:100%;text-align:center;border:0;background:var(--green);color:white;padding:14px 16px;border-radius:11px;font:inherit;font-weight:750;text-decoration:none;cursor:pointer;margin-top:20px}.action{margin-top:10px}
 .signup-row{text-align:center;margin-top:16px;color:var(--mute);font-size:14px}.signup-row a{color:var(--green);font-weight:750;text-decoration:underline;text-underline-offset:3px}.error{color:#ac3232;font-size:13px;min-height:18px}.fine{color:var(--mute);font-size:12px;text-align:center;margin-top:20px}
 </style></head><body><div class="login">
 <div class="brand"><span class="icon">🌱</span> FieldShift</div><h1>Welcome back</h1><p class="sub">Sign in to your farm intelligence dashboard.</p>
 <a class="action" href="/auth/login">Sign in with Auth0</a>
 <p class="signup-row">New to FieldShift? <a href="/auth/signup">Create an account</a></p>
-<div class="divider">or explore with sample data</div>
-<form action="/auth/demo" method="post"><label for="u">Demo username</label><input id="u" name="username" value="test" autocomplete="off" required>
-<label for="p">Demo password</label><input id="p" name="password" type="password" placeholder="Enter demo password" autocomplete="off" required>
-<p id="error" class="error" role="alert"></p><button type="submit">Enter Sample Farm</button></form>
-<div class="warn"><strong>Public sample account:</strong> Username <code>test</code> / password <code>test</code>. This account uses fictional records, does not authenticate with Auth0, and cannot spend Gemini credits or access private farm data.</div>
-<p class="fine">Real farmers sign in through Auth0. ESP32 pairing is available after sign-in; TigerData will be connected later.</p>
-</div><script>const err=new URLSearchParams(location.search).get('error');if(err==='invalid')document.getElementById('error').textContent='Invalid demo login. Use test / test.';if(err==='signup_unavailable')document.getElementById('error').textContent='Account registration is not currently enabled.';fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j.authenticated)location.replace('/dashboard.html')}).catch(()=>{});</script>
+<p id="error" class="error" role="alert" aria-live="polite"></p>
+<p class="fine">Secure sign-in and account creation are managed by Auth0. Pair your ESP32 after signing in.</p>
+</div><script>const err=new URLSearchParams(location.search).get('error');if(err==='signup_unavailable')document.getElementById('error').textContent='Account registration is not currently enabled.';fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j.authenticated)location.replace('/dashboard.html')}).catch(()=>{});</script>
 </body></html>
