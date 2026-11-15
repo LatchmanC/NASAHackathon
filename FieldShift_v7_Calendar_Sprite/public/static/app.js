@@ -69,13 +69,20 @@ async function api(path,opts={}){
   finally{clearTimeout(timer);}
 }
 
-function tab(name){state.tab=name;$$('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.tab===name));$$('.panel-tab').forEach(n=>n.classList.toggle('hidden',n.id!==`tab-${name}`));$('.sidebar').classList.remove('open');if(name==='live')loadLive();if(name==='nasa')loadNASA();if(name==='crops'&&!state.plan)loadPlan();}
-async function loadLive(){try{const o=await api('/api/overview');state.overview=o;updateLive(o);}catch(e){$('#sensor-state').textContent='Sensor station unavailable';$('#sync-message').textContent=e.message;showToast(e.message,true);}}
+function tab(name){state.tab=name;$$('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.tab===name));$$('.panel-tab').forEach(n=>n.classList.toggle('hidden',n.id!==`tab-${name}`));$('.sidebar').classList.remove('open');if(name==='live')loadLive();if(name==='nasa')loadNASA();if(name==='history')initArchive();if(name==='crops'&&!state.plan)loadPlan();}
+let loadingLive=false;
+async function loadLive(){
+  if(loadingLive)return;
+  loadingLive=true;
+  try{const o=await api('/api/overview',{timeout:12000});state.overview=o;updateLive(o);}
+  catch(e){$('#sensor-state').textContent='Sensor station unavailable';$('#sync-message').textContent=e.message;showToast(e.message,true);}
+  finally{loadingLive=false;}
+}
 function updateLive(o){const stateEl=$('#sensor-state');stateEl.className='state-chip'+(o.state==='live'?'':o.state==='offline'?' off':' warn');const names={live:'●  Live',demo:'◉  SYNTHETIC SAMPLE',stale:'◷  Sensor delayed',cloud_only:'◷  Last cloud record',offline:'○  Offline'};stateEl.textContent=names[o.state]||'Checking…';
   $('#location-label').textContent=o.location?.label||'Location not selected';$('#location-current').textContent=o.location?.label||'Location not selected';$('#side-status').textContent=o.state==='demo'?'Synthetic example only':o.state==='live'?'Receiving ESP32 data':o.pi_connected?'Station online · sensor stale':o.cloud_connected?'Station offline · cloud available':'Station offline';$('.statusdot').classList.toggle('online',o.state==='live');
   let message=o.last_reading_at?`Last sensor reading: ${localTime(o.last_reading_at)}`:'No recorded reading yet';message+=o.sensor_source==='SYNTHETIC_SAMPLE'?' · SYNTHETIC SAMPLE / NO ESP32 CONNECTED':'';message+=o.sensor_access_mode==='shared'?' · Shared device (read-only)':'';message+=o.last_cloud_sync?` · Last cloud sync: ${localTime(o.last_cloud_sync)}`:' · Cloud sync unconfirmed';if(o.pending_cloud!==null&&o.pending_cloud!==undefined)message+=` · ${o.pending_cloud} queued`;$('#sync-message').textContent=message;
   const m=o.latest||{};$('#live-metrics').innerHTML=metricInfo.map(([key,label,icon])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${fixed(m[key])}<span class="metric-unit">${html(units[key])}</span></div><div class="metric-hint">${m[key]===undefined?'No measurement yet':o.sensor_source==='SYNTHETIC_SAMPLE'?'Synthetic sample, not an ESP32 reading':'Latest ESP32 measurement'}</div></article>`).join('');
-  $('#storage-type').textContent=o.sensor_source==='SYNTHETIC_SAMPLE'?'Sample data only':o.cloud_connected?'Private cloud sensor storage':'Cloud unavailable';$('#stored-count').textContent=o.cloud_record_count??'—';$('#last-cloud-sync').textContent=localTime(o.last_cloud_sync);
+  $('#storage-type').textContent=o.sensor_source==='SYNTHETIC_SAMPLE'?'Sample data only':o.sensor_source==='ESP32_TIGERDATA'?'TigerData near-live':o.sensor_source==='ESP32_SHARED_READONLY'?'Shared cloud sensor feed':o.cloud_connected?'Private cloud sensor storage':'Cloud unavailable';$('#stored-count').textContent=o.cloud_record_count??'—';$('#last-cloud-sync').textContent=localTime(o.last_cloud_sync);
   renderFlags(o.flags||[]);
 }
 async function loadHistory(){try{const d=await api('/api/recorded?limit=100&offset=0');state.history=d.readings||[];const keys=['recorded_at','temperature_c','humidity_pct','pressure_hpa','soil_moisture_pct','rain_wetness_pct','light_pct','gas_index','altitude_m','ph'];$('#history-table tbody').innerHTML=state.history.length?state.history.map(r=>'<tr>'+keys.map((k,i)=>`<td>${i===0?html(String(r[k]||'—').replace('T',' ').replace('+00:00',' UTC')):fixed(r[k])}</td>`).join('')+'</tr>').join(''):'<tr><td colspan="10">No cloud records yet.</td></tr>';$('#history-note').textContent=`Showing ${state.history.length} latest cloud records; ${d.total||0} total.`;}catch(e){$('#history-note').textContent='Cloud receiver unavailable: '+e.message;}}
@@ -294,12 +301,115 @@ async function addCalendarEvent(e){e.preventDefault();
 async function deleteCalendarEvent(id){try{const r=await api('/api/calendar/'+encodeURIComponent(id),{method:'DELETE'});calendarState.tasks=r.events;renderCalendar();showToast('Task deleted.');}catch(e){showToast(e.message,true);}}
 function moveCalendarMonth(change){const d=new Date(calendarState.year,calendarState.month+change,1);calendarState.year=d.getFullYear();calendarState.month=d.getMonth();renderCalendar();}
 
+
+let archiveReady=false;
+function archiveView(){return saved('sensor_view','auto');}
+function archiveLocation(){return currentLocation();}
+function initArchive(){
+  const now=new Date().toISOString().slice(0,10);
+  if(!$('#archive-date').value)$('#archive-date').value=now;
+  if(!$('#archive-month').value)$('#archive-month').value=now.slice(0,7);
+  if(!archiveReady){archiveReady=true;loadArchiveDays();}
+  else loadArchiveTimes();
+}
+async function loadArchiveDays(){
+  const month=$('#archive-month').value||new Date().toISOString().slice(0,7);
+  const date=$('#archive-date');
+  if(!date.value.startsWith(month))date.value=month+'-01';
+  const status=$('#archive-message');
+  try{
+    const s=await api('/api/history/status');
+    if(!s.configured){
+      status.textContent='TigerData is not connected yet. Current readings still use the existing Vercel Blob storage. Configure TigerData to start 10-minute history.';
+      $('#archive-available-days').textContent='No TigerData archive is available yet.';
+      $('#archive-snapshot').replaceChildren(new Option('TigerData not configured',''));
+      return;
+    }
+    const [y,m]=month.split('-');
+    const d=await api('/api/history/days?year='+encodeURIComponent(y)+'&month='+encodeURIComponent(m)+'&view='+encodeURIComponent(archiveView()));
+    $('#archive-available-days').textContent=d.days.length?
+      'Saved dates (UTC): '+d.days.map(x=>x.date+' ('+x.count+' snapshots)').join(' · '):
+      'No sensor snapshots saved in this month yet.';
+    status.textContent='TigerData connected. Choose a saved date, then select the time.';
+    await loadArchiveTimes();
+  }catch(e){status.textContent='History unavailable: '+e.message;}
+}
+async function loadArchiveTimes(){
+  const day=$('#archive-date').value,select=$('#archive-snapshot');
+  if(!day){select.replaceChildren(new Option('Select a date',''));return;}
+  try{
+    const data=await api('/api/history/snapshots?day='+encodeURIComponent(day)+'&view='+encodeURIComponent(archiveView()));
+    select.replaceChildren(new Option('Select a saved time',''));
+    for(const snap of data.snapshots){
+      const option=new Option(new Date(snap.recorded_at).toLocaleString(undefined,{timeZone:'UTC',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' UTC · '+snap.device_id,snap.bucket_at);
+      select.add(option);
+    }
+    $('#archive-message').textContent=data.snapshots.length?
+      data.snapshots.length+' saved timestamp(s) found on '+day+' (UTC).':
+      'No archived ESP32 readings on '+day+'.';
+  }catch(e){
+    select.replaceChildren(new Option('Saved times unavailable',''));
+    $('#archive-message').textContent='Unable to load saved times: '+e.message;
+  }
+}
+async function loadArchiveEntry(){
+  const day=$('#archive-date').value,bucket=$('#archive-snapshot').value;
+  if(!day||!bucket){showToast('Choose a day and a saved timestamp first.',true);return;}
+  const l=archiveLocation();
+  try{
+    const query='day='+encodeURIComponent(day)+'&bucket='+encodeURIComponent(bucket)+
+      '&latitude='+encodeURIComponent(l.latitude)+'&longitude='+encodeURIComponent(l.longitude)+
+      '&view='+encodeURIComponent(archiveView());
+    const d=await api('/api/history/entry?'+query,{timeout:22000});
+    const reading=d.sensor||{};
+    $('#archive-sensor-time').textContent='Device '+(reading.device_id||'—')+' · '+localTime(reading.recorded_at)+
+      ' · '+(d.sensor_access==='shared'?'Shared read-only ESP32':'Account ESP32');
+    $('#archive-sensor-cards').innerHTML=metricInfo.map(([key,label,icon])=>
+      '<article class="metric-card"><div class="metric-top"><span>'+html(label)+
+      '</span><span class="metric-icon">'+icon+'</span></div><div class="metric-value">'+fixed(reading[key])+
+      '<span class="metric-unit">'+html(units[key])+'</span></div><div class="metric-hint">Saved ESP32 reading</div></article>').join('');
+    if(d.nasa?.observations){
+      const n=d.nasa.observations;
+      const fields=[['temperature_c','Mean temperature'],['temperature_max_c','Maximum temperature'],
+        ['temperature_min_c','Minimum temperature'],['humidity_pct','Humidity'],['pressure_hpa','Pressure'],
+        ['precipitation_mm','Daily rainfall'],['solar_mj_m2_day','Solar energy'],
+        ['wind_2m_ms','Wind at 2 m'],['soil_wetness_fraction','Modeled soil wetness']];
+      $('#archive-nasa-cards').innerHTML=fields.map(([key,label])=>
+        '<article class="metric-card"><div class="metric-top"><span>'+html(label)+
+        '</span></div><div class="metric-value">'+fixed(n[key],key==='soil_wetness_fraction'?3:1)+
+        '<span class="metric-unit">'+html(nasaInfo[key]?.[1]||'')+
+        '</span></div><div class="metric-hint">NASA POWER · '+html(day)+'</div></article>').join('');
+      $('#archive-nasa-note').textContent='Stored NASA POWER Daily for '+day+
+        ' · Retrieved '+localTime(d.nasa.stored_at)+
+        ' · Regional historical data; not a farm sensor measurement.';
+    }else{
+      $('#archive-nasa-cards').innerHTML='<div class="empty-card">No NASA POWER Daily record stored for this day and location. Use the Sync button to save available regional history.</div>';
+      $('#archive-nasa-note').textContent='NASA POWER may not have published this day yet. Its daily records are separate from the ESP32 measurements.';
+    }
+    $('#archive-message').textContent='Loaded authentic saved ESP32 reading for '+day+'.';
+  }catch(e){showToast('Unable to load history: '+e.message,true);}
+}
+async function syncArchiveNASA(){
+  const button=$('#archive-sync-nasa');button.disabled=true;button.textContent='Syncing NASA POWER…';
+  try{
+    const r=await api('/api/history/sync-nasa',{method:'POST',body:{location:archiveLocation(),days:120},timeout:115000});
+    showToast('Saved '+r.stored_days+' NASA POWER days in TigerData.');
+    $('#archive-message').textContent='NASA POWER synced: '+r.period+' · '+r.stored_days+' days stored.';
+    if($('#archive-snapshot').value)await loadArchiveEntry();
+  }catch(e){showToast('NASA sync unavailable: '+e.message,true);}
+  finally{button.disabled=false;button.textContent='Store latest NASA POWER Daily in TigerData';}
+}
+
 function attach(){
   $$('.navitem').forEach(n=>n.addEventListener('click',()=>tab(n.dataset.tab)));
   $('#mobile-menu').onclick=()=>$('.sidebar').classList.toggle('open');
   $('#refresh-button').onclick=()=>tab(state.tab);
   $('#history-details').addEventListener('toggle',e=>{if(e.target.open)loadHistory();});
   $('#export-csv').onclick=exportCSV;
+  $('#archive-month').onchange=loadArchiveDays;
+  $('#archive-date').onchange=loadArchiveTimes;
+  $('#archive-load').onclick=loadArchiveEntry;
+  $('#archive-sync-nasa').onclick=syncArchiveNASA;
   $('#fetch-nasa').onclick=fetchNASA;$('#change-nasa-location').onclick=()=>tab('crops');
   $('#nasa-variable').onchange=renderNASAChart;$('#chart-days').onchange=renderNASAChart;
   $('#sensor-view').onchange=e=>{persist('sensor_view',e.target.value);loadLive();loadHistory();loadLocalDays();};
@@ -427,4 +537,6 @@ function initSms(){
   loadSmsStatus();
 }
 loadAccount().then(()=>{initLocations();loadLive();loadSharedDeviceStatus();loadPlan();loadCalendar();loadGeminiStatus();initSms();});
-setInterval(()=>{if(state.tab==='live')loadLive();},30000);
+// Near-live HTTP polling: new readings appear within roughly 2 seconds of
+// a successful ESP32 upload when TigerData is configured; no fake readings.
+setInterval(()=>{if(state.tab==='live'&&document.visibilityState==='visible')loadLive();},2000);

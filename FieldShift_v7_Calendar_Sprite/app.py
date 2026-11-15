@@ -18,11 +18,13 @@ from gemini_client import generate_gemini_reply, DEFAULT_GEMINI_MODEL
 from sensor_store import configured as sensor_configured, read_snapshot, age_seconds, daily_averages
 from device_api import resolve_device_data
 from device_api import install_device_routes
+from history_api import install_history_routes
+from tigerdata_store import enabled as tiger_enabled
 from advisor_core import answer_question
 
 ROOT=Path(__file__).resolve().parent
 load_dotenv(ROOT/'.env',override=False)
-app=FastAPI(title='Cropoganda — production demo', docs_url=None, redoc_url=None)
+app=FastAPI(title='Cropoganda — farm intelligence', docs_url=None, redoc_url=None)
 # Vercel serves public/static separately from Python functions.
 static_dir = ROOT / 'public' / 'static'
 if static_dir.is_dir():
@@ -40,7 +42,7 @@ DEFAULT_PLAN={'total_area':5,'area_unit':'acres','notes':'','crops':[{'name':'To
 def home(): return FileResponse(ROOT/'public'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(): return {'ok':True,'service':'Cropoganda','sensor_storage_configured':sensor_configured()}
+def health(): return {'ok':True,'service':'Cropoganda','sensor_storage_configured':sensor_configured(),'tigerdata_configured':tiger_enabled()}
 
 @app.get('/api/overview')
 def overview(request:Request,view:str='auto'):
@@ -59,7 +61,7 @@ def overview(request:Request,view:str='auto'):
             'last_cloud_sync':snap.get('last_updated') if snap else None,'pending_cloud':None,
             'cloud_record_count':len(snap.get('readings',[])) if snap else 0,
             'location':DEFAULT_LOCATION,'flags':[],
-            'sensor_source':'ESP32_SHARED_READONLY' if latest and access=='shared' else 'ESP32_PRIVATE_BLOB' if latest else 'NONE',
+            'sensor_source':'ESP32_SHARED_READONLY' if latest and access=='shared' else ('ESP32_TIGERDATA' if tiger_enabled() else 'ESP32_PRIVATE_BLOB') if latest else 'NONE',
             'sensor_access_mode':access}
 
 @app.get('/api/recorded')
@@ -218,6 +220,7 @@ def farming_advice(req:AdviceRequest,request:Request):
 from auth0_integration import install_auth
 AUTH_SETTINGS=install_auth(app)
 install_device_routes(app)
+install_history_routes(app)
 
 # Text messages (Twilio): alerts, reminders, STATUS and Fieldy by SMS. See sms.py / TWILIO_SETUP.md
 from sms import install_sms_routes

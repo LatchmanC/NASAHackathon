@@ -16,8 +16,9 @@
       <button class="navitem active" data-tab="crops"><span class="navicon">❋</span>Crop Management</button>
       <button class="navitem" data-tab="live"><span class="navicon">▦</span>Live Sensor Data</button>
       <button class="navitem" data-tab="nasa"><span class="navicon">◉</span>NASA POWER Daily</button>
+      <button class="navitem" data-tab="history"><span class="navicon">▤</span>History</button>
     </nav>
-    <div class="sidebar-bottom"><div class="account-box" id="account-box" aria-live="polite">Loading account…</div><div class="sidebar-pi"><span class="statusdot"></span><div><strong>Field Station</strong><small id="side-status">Connecting...</small></div></div><p>ESP32 → SQL Cloud</p><span class="small-muted">3-tab field dashboard</span></div>
+    <div class="sidebar-bottom"><div class="account-box" id="account-box" aria-live="polite">Loading account…</div><div class="sidebar-pi"><span class="statusdot"></span><div><strong>Field Station</strong><small id="side-status">Connecting...</small></div></div><p>ESP32 → SQL Cloud</p><span class="small-muted">Cropoganda field dashboard</span></div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -25,7 +26,7 @@
       <div class="location-line"><span class="pin">⌖</span> <span id="location-label">Loading location...</span></div>
       <div class="top-actions"><button class="refresh-btn" id="refresh-button">↻ Refresh</button></div>
     </header>
-    <div class="page"><div class="preview-banner">FARM DASHBOARD · Farm plans and calendar are stored in this browser. Paired ESP32 readings are stored privately; TigerData sync is planned.</div>
+    <div class="page"><div class="preview-banner">FARM DASHBOARD · Farm plans and calendar are stored in this browser. Paired ESP32 readings stay private. TigerData provides near-live updates and 10-minute archives when connected.</div>
       <section class="panel-tab" id="tab-crops">
         <div class="heading-row"><div><div class="eyebrow">FARM SETUP + GEMINI</div><h1>Crop Management</h1><p class="subtitle">Tell Cropoganda where your land is, how much area you have, and which crops you're growing.</p></div><span class="data-badge">Farming advisor</span></div>
         <section class="card section-gap location-inline"><div class="card-heading"><div><h2>Farm location</h2><p class="muted">Used for NASA records, forecasts, and crop planning.</p></div><strong id="location-current">Not selected</strong></div>
@@ -133,6 +134,32 @@
         <div class="main-columns section-gap">
           <section class="card forecast-card"><div class="card-heading"><div><h2>Upcoming weather</h2><p class="muted">Forecast from a separate weather service</p></div><span class="data-badge">Live forecast</span></div><div id="weather-report" class="forecast-list">Loading…</div><p class="footnote" id="forecast-source"></p></section>
           <section class="card alerts-card"><div class="card-heading"><div><h2>Severe weather warnings</h2><p class="muted">Official U.S. National Weather Service alerts where available</p></div><span class="icon-outline">⚠</span></div><div id="alert-section">Checking…</div><div id="local-flags"></div><p class="footnote">If alerts are unavailable, consult your local meteorological authority. Cropoganda is not a life-safety warning system.</p></section>
+        </div>
+      </section>
+      <section class="panel-tab hidden" id="tab-history">
+        <div class="heading-row"><div><div class="eyebrow">TIGERDATA + NASA POWER</div><h1>History</h1><p class="subtitle">Select a calendar day and saved 10-minute sensor snapshot, then view the recorded ESP32 data beside NASA POWER observations for that same day.</p></div><span class="data-badge">Saved snapshots · UTC</span></div>
+        <div class="card section-gap">
+          <div class="card-heading"><div><h2>Browse saved readings</h2><p class="muted">Each entry represents the first real reading received during a 10-minute UTC interval. Times below are UTC.</p></div></div>
+          <div class="columns2">
+            <div><label for="archive-month">Month and year</label><input id="archive-month" type="month"></div>
+            <div><label for="archive-date">Date</label><input id="archive-date" type="date"></div>
+          </div>
+          <p id="archive-available-days" class="footnote">Choose a month to see which dates have recorded snapshots.</p>
+          <label for="archive-snapshot">Saved timestamp</label><select id="archive-snapshot" style="width:100%"><option value="">Choose a date first</option></select>
+          <div class="heading-actions section-gap">
+            <button class="primary-btn" id="archive-load" type="button">Load saved snapshot</button>
+            <button class="secondary-btn" id="archive-sync-nasa" type="button">Store latest NASA POWER Daily in TigerData</button>
+          </div>
+          <p id="archive-message" class="footnote">Checking TigerData archive availability…</p>
+        </div>
+        <div class="card section-gap">
+          <div class="card-heading"><div><h2>ESP32 reading at the selected time</h2><p id="archive-sensor-time" class="muted">No snapshot selected.</p></div><span class="data-badge">Recorded sensor data</span></div>
+          <div id="archive-sensor-cards" class="metric-grid"><div class="empty-card">Select a saved timestamp above.</div></div>
+        </div>
+        <div class="card section-gap">
+          <div class="card-heading"><div><h2>NASA POWER Daily for that date</h2><p class="muted">Daily regional historical observations, not measurements from the ESP32.</p></div><span class="data-badge">NASA POWER</span></div>
+          <div id="archive-nasa-cards" class="metric-grid"><div class="empty-card">Select a saved timestamp to view the corresponding NASA day.</div></div>
+          <p id="archive-nasa-note" class="footnote">NASA data is stored for the farm location selected under Crop Management. It may lag the current day.</p>
         </div>
       </section>
     </div>
