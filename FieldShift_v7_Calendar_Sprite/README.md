@@ -1,22 +1,66 @@
+# FieldShift v11 — Production login + sample profile
+
+**Live production**: https://cropaganda.garden
+
+- The public home page is a login screen. Real users use Auth0 Universal Login; the temporary **test / test** credentials open a **fictional sample-only** profile using a signed server-side cookie. This is a demonstration, not a secure password.
+- Sample account: crop plan, editable calendar, fictional sensor metrics clearly marked synthetic, live NASA POWER historical downloads, live Open-Meteo forecasts and official NWS alerts where supported. Fieldy displays **sample advice only** in this account and makes **no Gemini API call**, so the public test credentials cannot incur AI charges.
+- Approved Auth0 users: real Gemini calls are server-side; crop plans/calendar use per-browser storage until TigerData exists. User verification is restricted by `AUTH0_ALLOWED_EMAILS` in the Auth0 callback. Do not use browser storage for sensitive farm details.
+- ESP32 device upload and TigerData have **not been implemented**. Sensor data outside the sample account is honestly shown as disconnected.
+- All `/api/*` endpoints except health and auth-status require a signed session when `AUTH0_ENABLED=1`.
+
+## Required Vercel production environment variables
+
+```
+AUTH0_ENABLED=1
+FIELDSHIFT_DEMO=0
+FIELDSHIFT_SAMPLE_ACCOUNT=1
+APP_BASE_URL=https://cropaganda.garden
+AUTH0_DOMAIN=your-auth0-tenant.auth0.com
+AUTH0_CLIENT_ID=your-existing-client-id
+AUTH0_CLIENT_SECRET=your-existing-secret
+AUTH0_SECRET=your-existing-random-cookie-secret-32-chars-plus
+GEMINI_API_KEY=your-private-key
+AUTH0_ALLOWED_EMAILS=approved-account@example.com
+```
+
+The `AUTH0_ALLOWED_EMAILS` list may initially be empty; production starts with the sample account and the Auth0 sign-in link available, but real Auth0 sign-ins are denied until approved email addresses are added. Verify Auth0's email_verified claim. Never commit .env files or keys.
+
+Set Auth0 Regular Web Application URLs:
+- Callback: `https://cropaganda.garden/auth/callback`
+- Logout: `https://cropaganda.garden/`
+- Web Origin: `https://cropaganda.garden`
+
+If Auth0 requests fail, verify these values in Auth0. The separate Auth0 Management API credentials in Vercel are **not** required for user sign-in. Login passwords belong in Auth0, never in the FieldShift backend. An Auth0 Audience is optional for this server-managed browser session.
+
+## Local run
+
+```
+python -m pip install -r requirements.txt
+python -m uvicorn app:app --reload --port 8501
+```
+
+For local testing, set `AUTH0_ENABLED=0`, `FIELDSHIFT_DEMO=1`, `FIELDSHIFT_SAMPLE_ACCOUNT=1`, and a 32+ character `SESSION_SECRET`. The test profile is a fictional demo, not an Auth0 account.
+
+---
+
 ## Live Auth0 setup for cropaganda.garden
 
-The FieldShift production website uses **https://cropaganda.garden** as its canonical host.
+The FieldShift Vercel site uses **https://cropaganda.garden** as its canonical host.
+In your existing Auth0 **Regular Web Application**, set:
 
-In your Auth0 **Regular Web Application**, enter:
-
-| Auth0 setting | Exact URL |
-| --- | --- |
+| Auth0 setting | Value |
+|---|---|
 | Allowed Callback URLs | `https://cropaganda.garden/auth/callback` |
 | Allowed Logout URLs | `https://cropaganda.garden/` |
 | Allowed Web Origins | `https://cropaganda.garden` |
 
-The project already has `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, and `GEMINI_API_KEY` in Vercel; do **not** copy them into code or send them in chat. `APP_BASE_URL=https://cropaganda.garden` is configured for Production.
+Keep the already-configured `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, and `GEMINI_API_KEY` in **Vercel Production Environment Variables**. `APP_BASE_URL=https://cropaganda.garden` is already configured on Vercel.
 
-For server-side browser sessions, use `SESSION_SECRET` or the previously configured `AUTH0_SECRET` (32+ characters). Set `AUTH0_ALLOWED_EMAILS` to the *verified* email address(es) of approved farmers (comma-separated). Once the Auth0 callback URLs and approved accounts are set, add `AUTH0_ENABLED=1` and `FIELDSHIFT_DEMO=0` for Production and redeploy.
+The app accepts `SESSION_SECRET` or existing `AUTH0_SECRET` (at least 32 characters) for the signed browser session. Never copy or expose its value. Add `AUTH0_ALLOWED_EMAILS` listing only verified email addresses you approve, separated by commas. Then set `AUTH0_ENABLED=1` and `FIELDSHIFT_DEMO=0`, and redeploy **after** the Auth0 callback allowlist is saved.
 
-An Auth0 API Audience can be added as `AUTH0_AUDIENCE` if the application requires an access token for a separate protected API; it is not required to sign in to this server-rendered website. Auth0 Management API client credentials are unrelated to ordinary farmer sign-in.
+`AUTH0_AUDIENCE` is optional for the website's OIDC login; add it only if requesting access tokens for your separate protected API. The Auth0 Management API client credentials are **not** needed for ordinary farmer login. Do not paste secrets in GitHub.
 
-**Important:** This preview does not yet load farm records from a cloud database: a farmer's plan and calendar are stored in that browser's local storage, partitioned by Auth0 user ID. They do not securely synchronize across devices. A multi-farm rollout requires server-side TigerData storage and farm-level access controls.
+**Current limitation:** user-specific farm plans and calendar are saved only in browser storage under an Auth0 user identifier; this is not server-side farm data isolation or cross-device sync. Add TigerData and enforce farm membership in every database query before admitting unrelated farmers.
 
 ---
 

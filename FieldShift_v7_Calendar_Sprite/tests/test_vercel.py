@@ -4,6 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
+from types import SimpleNamespace
 import app as server
 
 
@@ -34,7 +35,8 @@ class HostedPreviewTests(unittest.TestCase):
         body={'plan':{'total_area':5,'area_unit':'acres','crops':[{'name':'Corn','area':2}]},'location':{'latitude':40,'longitude':-73},'question':'Help with corn'}
         # Mock only the provider functions. Real authentication enforcement is tested in v8.
         with patch.dict(os.environ,{'AUTH0_ENABLED':'1','GEMINI_API_KEY':'test-not-real'}),patch.object(server,'forecast',return_value=[]),patch.object(server,'generate_gemini_reply',return_value=json.dumps(fake)) as generate:
-            result=server.farming_advice(server.AdviceRequest(**body))
+            request=SimpleNamespace(scope={'session':{}},session={'user':{'mode':'auth0'}})
+            result=server.farming_advice(server.AdviceRequest(**body),request)
             self.assertEqual(result['advice_structured']['headline'],fake['headline'])
             self.assertEqual(result['advice_structured']['crops'][0]['name'],'Corn')
             self.assertEqual(generate.call_args.kwargs.get('json_mode'),True)

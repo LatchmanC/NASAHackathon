@@ -6,7 +6,7 @@ import json, math, os, re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -18,12 +18,14 @@ from gemini_client import generate_gemini_reply, DEFAULT_GEMINI_MODEL
 
 ROOT=Path(__file__).resolve().parent
 load_dotenv(ROOT/'.env',override=False)
-app=FastAPI(title='FieldShift — Vercel preview', docs_url=None, redoc_url=None)
-# In Vercel, files under public/ are served by the platform and aren't packaged
-# inside the Python function. Only mount locally when the directory exists.
-static_dir = ROOT / 'public' / 'static'
-if static_dir.is_dir():
-    app.mount('/static', StaticFiles(directory=str(static_dir)), name='static')
+app=FastAPI(title='FieldShift — production demo', docs_url=None, redoc_url=None)
+app.mount('/static',StaticFiles(directory=str(ROOT/'public'/'static')),name='static')
+SAMPLE_LOCATION={'mode':'coords','label':'Test Farm — San Diego, California','latitude':32.7157,'longitude':-117.1611,'resolution':'sample city-center coordinates'}
+SAMPLE_PLAN={'total_area':5,'area_unit':'acres','notes':'Fictional Test Farm — for interface demonstration only','crops':[{'name':'Tomato','area':1.5,'stage':'Planning','planted_on':'','variety':''},{'name':'Corn','area':2,'stage':'Vegetative','planted_on':'2026-10-02','variety':''},{'name':'Potato','area':1,'stage':'Planning','planted_on':'','variety':''}]}
+
+def is_sample(request:Request):
+    return request.session.get('user',{}).get('mode')=='sample' if 'session' in request.scope else False
+
 DEFAULT_LOCATION={'mode':'coords','label':'Demo — New York City','latitude':40.7128,'longitude':-74.006,'resolution':'sample coordinates'}
 DEFAULT_PLAN={'total_area':5,'area_unit':'acres','notes':'','crops':[{'name':'Tomato','area':1.5,'stage':'Planning','planted_on':'','variety':''},{'name':'Corn','area':2,'stage':'Planning','planted_on':'','variety':''}]}
 
@@ -34,14 +36,27 @@ def home(): return FileResponse(ROOT/'public'/'index.html',headers={'Cache-Contr
 def health(): return {'ok':True,'service':'FieldShift Vercel stateless preview','sensor_connected':False}
 
 @app.get('/api/overview')
-def overview():
+def overview(request:Request):
+    if is_sample(request):
+        now=datetime.now(timezone.utc).isoformat()
+        latest={'recorded_at':now,'device_id':'TEST-ESP32-NOT-CONNECTED','temperature_c':24.7,'humidity_pct':53.1,'pressure_hpa':1013.7,'altitude_m':-3.8,'rain_wetness_pct':5.1,'light_pct':62.7,'gas_index':22.2,'soil_moisture_pct':47.4}
+        return {'state':'demo','latest':latest,'pi_connected':False,'cloud_connected':False,'last_reading_at':now,'last_cloud_sync':None,'pending_cloud':None,'cloud_record_count':0,'location':SAMPLE_LOCATION,'flags':[], 'sensor_source':'SYNTHETIC_SAMPLE'}
     return {'state':'offline','latest':None,'pi_connected':False,'cloud_connected':False,'last_reading_at':None,'last_cloud_sync':None,'pending_cloud':None,'cloud_record_count':None,'location':DEFAULT_LOCATION,'flags':[], 'sensor_source':'NONE'}
 
 @app.get('/api/recorded')
-def recorded(limit:int=100,offset:int=0): return {'readings':[],'total':0,'storage':'Awaiting TigerData integration'}
+def recorded(request:Request,limit:int=100,offset:int=0):
+    if is_sample(request):
+        now=datetime.now(timezone.utc)
+        rows=[{'recorded_at':(now-timedelta(hours=i)).isoformat(),'device_id':'TEST-ESP32-NOT-CONNECTED','temperature_c':round(23.7+i*.2,1),'humidity_pct':round(52+i*.6,1),'pressure_hpa':1013.7,'soil_moisture_pct':round(47+i*.7,1),'rain_wetness_pct':5.1,'light_pct':62.7,'gas_index':22.2,'altitude_m':-3.8} for i in range(12)]
+        return {'readings':rows[offset:offset+min(limit,100)],'total':len(rows),'storage':'SYNTHETIC SAMPLE ONLY'}
+    return {'readings':[],'total':0,'storage':'Awaiting TigerData integration'}
 
 @app.get('/api/charts')
-def charts(): return {'local_days':{},'nasa':None,'record_count':0,'source':'No ESP32 connection yet'}
+def charts(request:Request):
+    if is_sample(request):
+        date=datetime.now(timezone.utc).date().isoformat()
+        return {'local_days':{date:{'temperature_c':24.7,'humidity_pct':53.1,'pressure_hpa':1013.7,'soil_moisture_pct':47.4}},'nasa':None,'record_count':12,'source':'SYNTHETIC SAMPLE ONLY'}
+    return {'local_days':{},'nasa':None,'record_count':0,'source':'No ESP32 connection yet'}
 
 @app.get('/api/locations/catalog')
 def locations(): return {'countries':catalog(),'note':'Preset city centers; precise locations require GPS coordinates.'}
@@ -99,7 +114,7 @@ def weather(mode:str='live',latitude:float=40.7128,longitude:float=-74.006):
     return {'mode':'live','forecast':upcoming,'forecast_source':'Open-Meteo forecast — separate from NASA POWER', 'alert_status':alerts,'location':loc,'errors':errors}
 
 @app.get('/api/plan')
-def plan():return DEFAULT_PLAN
+def plan(request:Request):return SAMPLE_PLAN if is_sample(request) else DEFAULT_PLAN
 
 def validate_plan(p):
     if not isinstance(p,dict):raise ValueError('Invalid plan')
@@ -136,10 +151,13 @@ def plan_validate(payload:dict):
 def calendar(): return {'events':[],'storage':'browser only'}
 
 @app.get('/api/gemini/status')
-def gemini_status():
+def gemini_status(request:Request):
     available=bool(os.environ.get('GEMINI_API_KEY','').strip())
-    authenticated=(os.environ.get('AUTH0_ENABLED','0')=='1')
-    return {'configured':available and authenticated,'model':DEFAULT_GEMINI_MODEL,'note':'Configure both Gemini key and Auth0 before enabling public AI requests.'}
+    user=request.session.get('user',{}) if 'session' in request.scope else {}
+    sample=user.get('mode')=='sample'
+    return {'configured':bool(sample or (available and user.get('mode')=='auth0')),
+            'model':DEFAULT_GEMINI_MODEL,'mode':'sample' if sample else 'live' if available and user.get('mode')=='auth0' else 'unavailable',
+            'note':'Sample advice is a fixed demonstration, not Gemini.' if sample else 'Real Gemini advice requires an approved Auth0 login.'}
 
 class AdviceRequest(BaseModel):
     plan:dict
@@ -151,9 +169,18 @@ class AdviceRequest(BaseModel):
     weather_mode:str='live'
 
 @app.post('/api/plan/advice')
-def farming_advice(req:AdviceRequest):
-    # Prevent unrestricted public use of the paid API when Auth0 is off.
-    if os.environ.get('AUTH0_ENABLED','0')!='1': raise HTTPException(403,'Connect Auth0 login before enabling Gemini on the public website.')
+def farming_advice(req:AdviceRequest,request:Request):
+    user=request.session.get('user',{}) if 'session' in request.scope else {}
+    if user.get('mode')=='sample':
+        p=validate_plan(req.plan)
+        crops=[{'name':x['name'],'next_step':'Check crop condition and add a planting date or variety for a better timeline.','timing':'Planning example'} for x in p['crops']]
+        return {'advice_structured':{'headline':'Review your sample crop plans before your next field visit.',
+           'actions':[{'title':'Check drainage','detail':'Inspect low areas before watering.'},{'title':'Add planting dates','detail':'Enter dates and varieties to improve the growing timeline.'}],
+           'crops':crops,'weather_watch':'Download a live forecast in the NASA tab before making decisions.',
+           'data_note':'Example guidance only; sensor readings are fictional and no Gemini call was made.'},
+           'created_at':datetime.now(timezone.utc).isoformat(),'model':'sample-advice','data_mode':'synthetic','provider':'demo'}
+    # Paid model calls are restricted to approved Auth0 accounts only.
+    if user.get('mode')!='auth0': raise HTTPException(403,'An approved Auth0 login is required to use Gemini.')
     key=os.environ.get('GEMINI_API_KEY','').strip()
     if not key:raise HTTPException(503,'Gemini has not been configured on this deployment.')
     if req.model!=DEFAULT_GEMINI_MODEL:raise HTTPException(400,'Unsupported model')
@@ -193,6 +220,6 @@ def farming_advice(req:AdviceRequest):
         return {'advice_structured':result,'created_at':datetime.now(timezone.utc).isoformat(),'model':DEFAULT_GEMINI_MODEL,'data_mode':'live' if f else 'unavailable'}
     except Exception:raise HTTPException(502,'Gemini could not create concise advice. Please try again or check the model and backend logs.')
 
-# Public preview has no device upload endpoint: ESP32 uploads and TigerData require user/device auth and durable storage.
+# Public website has no device upload endpoint: ESP32 uploads and TigerData require user/device auth and durable storage.
 from auth0_integration import install_auth
 AUTH_SETTINGS=install_auth(app)

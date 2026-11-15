@@ -67,11 +67,11 @@ async function api(path,opts={}){
 
 function tab(name){state.tab=name;$$('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.tab===name));$$('.panel-tab').forEach(n=>n.classList.toggle('hidden',n.id!==`tab-${name}`));$('.sidebar').classList.remove('open');if(name==='live')loadLive();if(name==='nasa')loadNASA();if(name==='crops'&&!state.plan)loadPlan();}
 async function loadLive(){try{const o=await api('/api/overview');state.overview=o;updateLive(o);}catch(e){$('#sensor-state').textContent='Sensor station unavailable';$('#sync-message').textContent=e.message;showToast(e.message,true);}}
-function updateLive(o){const stateEl=$('#sensor-state');stateEl.className='state-chip'+(o.state==='live'?'':o.state==='offline'?' off':' warn');const names={live:'●  Live',stale:'◷  Sensor delayed',cloud_only:'◷  Last cloud record',offline:'○  Offline'};stateEl.textContent=names[o.state]||'Checking…';
-  $('#location-label').textContent=o.location?.label||'Location not selected';$('#location-current').textContent=o.location?.label||'Location not selected';$('#side-status').textContent=o.state==='live'?'Receiving ESP32 data':o.pi_connected?'Station online · sensor stale':o.cloud_connected?'Station offline · cloud available':'Station offline';$('.statusdot').classList.toggle('online',o.state==='live');
-  let message=o.last_reading_at?`Last sensor reading: ${localTime(o.last_reading_at)}`:'No recorded reading yet';message+=o.sensor_source==='SIMULATED'?' · Simulated ESP32':'';message+=o.last_cloud_sync?` · Last cloud sync: ${localTime(o.last_cloud_sync)}`:' · Cloud sync unconfirmed';if(o.pending_cloud!==null&&o.pending_cloud!==undefined)message+=` · ${o.pending_cloud} queued`;$('#sync-message').textContent=message;
-  const m=o.latest||{};$('#live-metrics').innerHTML=metricInfo.map(([key,label,icon])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${fixed(m[key])}<span class="metric-unit">${html(units[key])}</span></div><div class="metric-hint">${m[key]===undefined?'No measurement yet':'ESP32 field reading'}</div></article>`).join('');
-  $('#storage-type').textContent=o.cloud_connected?'SQL cloud demo':'Cloud unavailable';$('#stored-count').textContent=o.cloud_record_count??'—';$('#last-cloud-sync').textContent=localTime(o.last_cloud_sync);
+function updateLive(o){const stateEl=$('#sensor-state');stateEl.className='state-chip'+(o.state==='live'?'':o.state==='offline'?' off':' warn');const names={live:'●  Live',demo:'◉  SYNTHETIC SAMPLE',stale:'◷  Sensor delayed',cloud_only:'◷  Last cloud record',offline:'○  Offline'};stateEl.textContent=names[o.state]||'Checking…';
+  $('#location-label').textContent=o.location?.label||'Location not selected';$('#location-current').textContent=o.location?.label||'Location not selected';$('#side-status').textContent=o.state==='demo'?'Synthetic example only':o.state==='live'?'Receiving ESP32 data':o.pi_connected?'Station online · sensor stale':o.cloud_connected?'Station offline · cloud available':'Station offline';$('.statusdot').classList.toggle('online',o.state==='live');
+  let message=o.last_reading_at?`Last sensor reading: ${localTime(o.last_reading_at)}`:'No recorded reading yet';message+=o.sensor_source==='SYNTHETIC_SAMPLE'?' · SYNTHETIC SAMPLE / NO ESP32 CONNECTED':'';message+=o.last_cloud_sync?` · Last cloud sync: ${localTime(o.last_cloud_sync)}`:' · Cloud sync unconfirmed';if(o.pending_cloud!==null&&o.pending_cloud!==undefined)message+=` · ${o.pending_cloud} queued`;$('#sync-message').textContent=message;
+  const m=o.latest||{};$('#live-metrics').innerHTML=metricInfo.map(([key,label,icon])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${fixed(m[key])}<span class="metric-unit">${html(units[key])}</span></div><div class="metric-hint">${m[key]===undefined?'No measurement yet':o.sensor_source==='SYNTHETIC_SAMPLE'?'Synthetic sample, not an ESP32 reading':'ESP32 field reading'}</div></article>`).join('');
+  $('#storage-type').textContent=o.sensor_source==='SYNTHETIC_SAMPLE'?'Sample data only':o.cloud_connected?'SQL cloud demo':'Cloud unavailable';$('#stored-count').textContent=o.cloud_record_count??'—';$('#last-cloud-sync').textContent=localTime(o.last_cloud_sync);
   renderFlags(o.flags||[]);
 }
 async function loadHistory(){try{const d=await api('/api/recorded?limit=100&offset=0');state.history=d.readings||[];const keys=['recorded_at','temperature_c','humidity_pct','pressure_hpa','soil_moisture_pct','rain_wetness_pct','light_pct','gas_index','altitude_m'];$('#history-table tbody').innerHTML=state.history.length?state.history.map(r=>'<tr>'+keys.map((k,i)=>`<td>${i===0?html(String(r[k]||'—').replace('T',' ').replace('+00:00',' UTC')):fixed(r[k])}</td>`).join('')+'</tr>').join(''):'<tr><td colspan="9">No cloud records yet.</td></tr>';$('#history-note').textContent=`Showing ${state.history.length} latest cloud records; ${d.total||0} total.`;}catch(e){$('#history-note').textContent='Cloud receiver unavailable: '+e.message;}}
@@ -165,7 +165,7 @@ async function askGemini(){
   finally{bubble.classList.remove('thinking');btn.disabled=false;btn.textContent='✦ Ask Fieldy for advice';}
 }
 
-async function loadGeminiStatus(){try{const s=await api('/api/gemini/status');$('#advisor-key-status').textContent=s.configured?'● Gemini ready — signed-in farmers only':'○ Configure Gemini and Auth0 in Vercel settings to enable the advisor';}catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}}
+async function loadGeminiStatus(){try{const s=await api('/api/gemini/status');$('#advisor-key-status').textContent=s.mode==='sample'?'● Sample Fieldy advice · No Gemini call':s.configured?'● Gemini ready · Approved Auth0 account':'○ Gemini requires an approved Auth0 account';}catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}}
 
 function fillSelect(element, values, placeholder) {
   const select = $(element);
@@ -314,8 +314,13 @@ function attach(){
 async function loadAccount(){
   try{
     const data=await api('/api/auth/me');const account=$('#account-box');
-    if(data.auth_enabled){
+    if(!data.authenticated){window.location.replace('/');return;}
+    if(data.authenticated){
       fsAccount='auth_'+String(data.user?.sub||'').replace(/[^a-z0-9_-]/gi,'_').slice(0,80);
+      if(data.user?.mode==='sample'){
+        if(!saved('location'))persist('location',{mode:'coords',label:'Test Farm — San Diego, California',latitude:32.7157,longitude:-117.1611,resolution:'sample city-center coordinates'});
+        if(!saved('calendar'))persist('calendar',[{id:'demo-inspection',date:'2026-11-18',kind:'inspection',crop:'Corn',note:'Check irrigation and inspect sample field'},{id:'demo-watering',date:'2026-11-21',kind:'watering',crop:'Tomato',note:'Check soil before watering'}]);
+      }
       account.textContent='Signed in: '+(data.user?.name||data.user?.email||'Farmer')+' · ';
       const link=document.createElement('a');link.href='/auth/logout';link.textContent='Sign out';account.appendChild(link);
     }else{fsAccount='preview';account.textContent='Public preview · Browser-only farm plan';}
