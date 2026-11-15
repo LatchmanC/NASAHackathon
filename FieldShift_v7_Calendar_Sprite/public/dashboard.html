@@ -193,8 +193,8 @@
       </section>
       <section class="panel-tab hidden" id="tab-soil" aria-label="Soil and crop rotation guide">
         <div class="heading-row soil-head">
-          <div><div class="eyebrow">USDA SOIL SURVEY + NASA SMAP</div><h1>Soil &amp; Crop Rotation</h1>
-          <p class="subtitle">Explore published soil properties, regional satellite moisture, and practical crop rotation guidance for your farm.</p></div>
+          <div><div class="eyebrow">USDA SOIL SURVEY + AGRICULTURAL DATA</div><h1>Soil &amp; Crop Rotation</h1>
+          <p class="subtitle">Explore published USDA soil properties, regional agricultural context, and practical crop rotation guidance for your farm.</p></div>
           <div class="heading-actions"><button type="button" id="soil-refresh" class="secondary-btn">↻ Refresh sources</button></div>
         </div>
         <div class="soil-source-strip"><span id="soil-location">Choose a real farm location in My Farm</span><span id="soil-source-time">No data loaded</span></div>
@@ -209,22 +209,14 @@
           <div class="soil-metrics">
             <article class="soil-metric"><span>USDA soil texture</span><strong id="soil-metric-texture">—</strong><small id="soil-metric-texture-note">Awaiting actual survey data</small></article>
             <article class="soil-metric"><span>USDA drainage</span><strong id="soil-metric-drainage">—</strong><small>Surveyed component description</small></article>
-            <article class="soil-metric"><span>NASA SMAP surface moisture</span><strong id="soil-metric-smap">—</strong><small id="soil-metric-smap-date">9 km satellite grid · not a soil probe</small></article>
           </div>
-          <div class="soil-layout-2">
+          <div class="soil-layout-2 soil-overview-layout">
             <article class="card soil-card">
               <div class="card-heading"><div><h2>Soil profile</h2><p class="muted">Verified USDA NRCS Soil Data Access</p></div><span class="data-badge">Map-unit survey</span></div>
               <p id="soil-usda-state" class="soil-feedback">Checking your farm location…</p>
               <div class="soil-attr-grid" id="soil-profile-fields"></div>
               <p class="soil-note">Map-unit properties represent a published soil survey, not laboratory results from your field. Surface horizons may differ across a map unit.</p>
               <button type="button" class="home-text-link" data-soil-pane-go="map">View USDA soil map ›</button>
-            </article>
-            <article class="card soil-card">
-              <div class="card-heading"><div><h2>Satellite soil moisture</h2><p class="muted">NASA SMAP, morning overpass, 9 km grid</p></div><span class="data-badge">Remote sensing</span></div>
-              <p id="soil-smap-state" class="soil-feedback">Checking satellite sampling configuration…</p>
-              <div id="soil-smap-chart" class="soil-smap-chart"><div class="soil-chart-empty">Only verified quality-passing SMAP readings appear here.</div></div>
-              <p class="soil-note">SMAP measures regional surface moisture, not the exact moisture beside an ESP32. Satellite observations may be missing under frozen, flooded, or unsuitable surface conditions.</p>
-              <a class="soil-external" href="https://worldview.earthdata.nasa.gov/" target="_blank" rel="noopener noreferrer">Explore imagery on NASA Worldview ↗</a>
             </article>
           </div>
           <article class="card soil-card section-gap">
@@ -237,7 +229,7 @@
         <div class="soil-pane hidden" id="soil-pane-context">
           <div class="soil-layout-2">
             <article class="card soil-card">
-              <div class="card-heading"><div><h2>NASA POWER agroclimatology</h2><p class="muted">Long-term regional averages, not current weather or SMAP measurements</p></div><span class="data-badge">NASA</span></div>
+              <div class="card-heading"><div><h2>NASA POWER agroclimatology</h2><p class="muted">Long-term regional averages, not current weather or field-sensor measurements</p></div><span class="data-badge">NASA</span></div>
               <p class="soil-feedback" id="soil-climate-status">Select a farm coordinate to retrieve climate averages.</p>
               <div class="soil-attr-grid" id="soil-climate-fields"></div>
             </article>
@@ -259,7 +251,7 @@
             <article class="card soil-card">
               <div class="card-heading"><div><h2>Other agricultural datasets</h2><p class="muted">Connected sources and official links; no fabricated values</p></div></div>
               <div class="soil-attr-grid" id="soil-other-sources"></div>
-              <p class="soil-note">USDA drainage comes from the Soil Overview. NASA Level-3 SMAP requires a configured Earth Engine service account; NASA POWER climate data does not replace it.</p>
+              <p class="soil-note">USDA drainage comes from the Soil Overview. Regional climate and land-cover data are not direct field-sensor measurements.</p>
             </article>
           </div>
         </div>
@@ -290,7 +282,7 @@
         </div>
         <div class="soil-pane hidden" id="soil-pane-rotation">
           <article class="card soil-card">
-            <div class="card-heading"><div><h2>Build a rotation</h2><p class="muted">Use your actual saved crops, USDA survey information, and optional quality-screened SMAP observations.</p></div></div>
+            <div class="card-heading"><div><h2>Build a rotation</h2><p class="muted">Use your actual saved crops, USDA survey information, and available regional agricultural data.</p></div></div>
             <div class="soil-rotation-controls">
               <label>Current crop <select id="soil-current-crop"></select></label>
               <label>Primary objective <select id="soil-rotation-goal"><option value="water">Conserve moisture</option><option value="cover">Protect soil with cover</option><option value="diversify">Diversify crop families</option></select></label>

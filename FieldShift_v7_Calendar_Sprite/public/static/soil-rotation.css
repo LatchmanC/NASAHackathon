@@ -7,12 +7,13 @@
 .soil-subtab{padding:11px 17px;border:1px solid transparent;border-radius:10px;background:transparent;color:#687d70;font-size:12px;font-weight:750;white-space:nowrap}
 .soil-subtab:hover{background:#f0f6f1}
 .soil-subtab.active{background:#e7f4e9;border-color:#c9e3cf;color:#216e45}
-.soil-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:17px}
+.soil-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:17px}
 .soil-metric{background:#fff;border:1px solid #e3eae3;border-radius:13px;padding:20px;min-width:0}
 .soil-metric span{display:block;font-size:11px;color:#758779}
 .soil-metric strong{display:block;font-size:21px;letter-spacing:-.5px;color:#315841;margin:13px 0 8px;overflow-wrap:anywhere}
 .soil-metric small{font-size:10px;color:#819586}
 .soil-layout-2{display:grid;grid-template-columns:1fr 1fr;gap:17px}
+.soil-layout-2.soil-overview-layout{grid-template-columns:minmax(0,1fr)}
 .soil-card{min-width:0}
 .soil-card h2{font-size:17px}
 .soil-card .card-heading{align-items:flex-start}
