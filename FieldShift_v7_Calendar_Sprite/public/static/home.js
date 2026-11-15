@@ -244,6 +244,10 @@ persist=function(k,v){
    if(k==='location')loadHomeWeather(true);
  }
 };
+document.addEventListener('keydown',event=>{
+ const item=event.target.closest('[data-go][role="link"]');
+ if(item&&(event.key==='Enter'||event.key===' ')){event.preventDefault();item.click();}
+});
 document.addEventListener('click',event=>{
  const trigger=event.target.closest('[data-go]');
  if(!trigger)return;

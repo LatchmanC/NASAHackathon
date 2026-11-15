@@ -61,7 +61,7 @@
               <div><h2>Local weather</h2><p>Current conditions and a simple outlook</p></div>
               <button class="home-text-link" type="button" data-go="nasa">Weather &amp; NASA ›</button>
             </div>
-            <div class="home-weather-now">
+            <div class="home-weather-now" role="link" tabindex="0" data-go="nasa" aria-label="Open detailed weather forecast">
               <span style="font-size:36px" aria-hidden="true">🌤️</span>
               <div><div class="home-temperature" id="home-weather-temperature">—</div>
               <div class="home-condition" id="home-weather-condition">Checking local weather…</div>
@@ -91,7 +91,7 @@
               <div><h2>Field station</h2><p>Actual ESP32 uploads only</p></div>
               <button type="button" class="home-text-link" data-go="live">Live sensors ›</button>
             </div>
-            <div class="home-sensor-surface">
+            <div class="home-sensor-surface" role="link" tabindex="0" data-go="live" aria-label="Open live field sensor details">
               <span class="home-sensor-icon" aria-hidden="true">📡</span>
               <div><div class="home-status-label" id="home-sensor-status">Checking device…</div>
               <div class="home-sensor-value" id="home-sensor-value">—</div>

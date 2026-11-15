@@ -1,4 +1,7 @@
 /* A calmer, approachable farm dashboard inspired by the provided crop-planning prototype. */
+.home-weather-now[data-go],.home-sensor-surface[data-go]{cursor:pointer;text-decoration:none;color:inherit}
+.home-weather-now[data-go]:hover,.home-sensor-surface[data-go]:hover{box-shadow:0 0 0 2px #cfe5d1}
+.home-weather-now[data-go]:focus-visible,.home-sensor-surface[data-go]:focus-visible{outline:3px solid #439865;outline-offset:2px}
 :root{--canvas:#f8f9f5;--line:#e3ebe3;--shadow:0 7px 27px rgba(26,69,38,.035)}
 body{background:var(--canvas)}
 .brand{padding-bottom:23px}
