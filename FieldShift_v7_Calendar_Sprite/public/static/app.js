@@ -390,8 +390,9 @@ let archiveReady=false;
 function archiveView(){return saved('sensor_view','auto');}
 function archiveLocation(){return currentLocation();}
 function initArchive(){
-  if(!archiveReady){archiveReady=true;loadArchiveDates();}
-  else loadArchiveTimes();
+  archiveReady=true;
+  // Refresh the list each visit so newly archived dates become selectable.
+  loadArchiveDates();
 }
 async function loadArchiveDates(){
   const select=$('#archive-date'),previous=select.value,status=$('#archive-message');
