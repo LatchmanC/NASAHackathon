@@ -268,6 +268,10 @@ install_history_routes(app)
 install_google_calendar_routes(app)
 install_farm_sync_routes(app)
 
+# Account-owned, revisioned farm profiles, calendars and rotation drafts in TigerData.
+from farm_profile_api import install_farm_profile_routes
+install_farm_profile_routes(app)
+
 # Text messages (Twilio): alerts, reminders, STATUS and Fieldy by SMS. See sms.py / TWILIO_SETUP.md
 from sms import install_sms_routes
 install_sms_routes(app, generate_gemini_reply, DEFAULT_GEMINI_MODEL, forecast)
