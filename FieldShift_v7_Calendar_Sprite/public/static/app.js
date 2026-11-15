@@ -160,8 +160,13 @@ async function api(path,opts={}){
     persist('calendar',next);smsSync();return {deleted:true,events:next};
   }
   if(path==='/api/nasa?mode=auto&days=90'&&farmCloudMode==='sample'){
-    // Fetch only synthetic climate automatically in public demo.
-    return api('/api/nasa?mode=demo&days=90',{timeout:20000});
+    const previous=saved('nasa');
+    const location=currentLocation();
+    const fresh=previous?.is_real_nasa&&previous.latitude===location.latitude&&
+      previous.longitude===location.longitude&&
+      (Date.now()-Date.parse(previous.fetched_at||''))<6*3600*1000;
+    if(fresh)return {nasa_daily:previous,note:'REAL NASA POWER · saved in this browser (demo read-only)'};
+    return api('/api/nasa?mode=real&days=90',{timeout:65000});
   }
   if(path==='/api/nasa?mode=auto&days=90'){
     const c=saved('nasa');const loc=currentLocation();
@@ -241,7 +246,18 @@ function plotSVG(series,dates,minHeight=124){
 function plotDates(series,availableDays){const all=new Set(series.flatMap(s=>Object.keys(s.values||{})));return [...all].sort().slice(-availableDays);}
 
 async function loadNASA(){await Promise.allSettled([loadNasaMeasurements(),loadLocalDays(),loadWeather()]);}
-async function loadNasaMeasurements(){try{const data=await api('/api/nasa?mode=auto&days=90',{timeout:110000});state.nasa=data.nasa_daily||null;renderNASA(data.note||'');}catch(e){$('#nasa-source').textContent='NASA data unavailable: '+e.message;showToast(e.message,true);}}
+async function loadNasaMeasurements(){
+  try{
+    const data=await api('/api/nasa?mode=auto&days=90',{timeout:110000});
+    state.nasa=data.nasa_daily||null;
+    if(farmCloudMode==='sample'&&state.nasa?.is_real_nasa)
+      await persist('nasa',state.nasa);
+    renderNASA(data.note||'');
+  }catch(e){
+    $('#nasa-source').textContent='NASA POWER unavailable for this location: '+e.message;
+    showToast('NASA POWER request failed: '+e.message,true);
+  }
+}
 async function loadLocalDays(){try{const d=await api('/api/charts',{timeout:20000});state.localDays=d.local_days||{};renderNASAChart();}catch(e){state.localDays={};}}
 function renderNASA(note=''){const n=state.nasa,rows=n?.rows||[];if(!rows.length){$('#nasa-source').textContent='No daily NASA records loaded. Click Download latest NASA data. This requires internet.';$('#nasa-metrics').innerHTML='<div class="empty-card">No regional data loaded.</div>';$('#nasa-table tbody').innerHTML='<tr><td colspan="10">No NASA observations loaded.</td></tr>';$('#nasa-chart').innerHTML='';return;}
   const rec=[...rows].reverse();const latest=rec[0]||{};const status=n.is_real_nasa?'REAL NASA POWER REGIONAL DATA':'SYNTHETIC NASA-LIKE DEMONSTRATION — NOT NASA DATA';$('#nasa-source').textContent=`${status} · ${n.period||''} · Downloaded ${localTime(n.fetched_at)}${note?' · '+note:''}`;$('#nasa-date-range').textContent=n.period||'';
@@ -253,7 +269,19 @@ function renderNASAChart(){const n=state.nasa,rows=n?.rows||[],key=$('#nasa-vari
   else if(key==='precipitation_mm')note='NASA rainfall is a daily total; the rain detector measures wetness, not rainfall depth.';
   else if(key==='solar_mj_m2_day')note='NASA solar energy and the photoresistor light index have different units.';
   $('#nasa-chart').innerHTML='<div class="chart-legend">'+legend+'</div><div class="nasa-chart-wrap">'+plotSVG(series,dates)+'</div>';$('#nasa-comparison-note').textContent=note;}
-async function fetchNASA(){const b=$('#fetch-nasa');b.disabled=true;b.textContent=farmCloudMode==='sample'?'Refreshing demo…':'Downloading NASA…';try{const d=await api('/api/nasa?mode=real&days=90',{timeout:65000});state.nasa=d.nasa_daily||null;renderNASA(d.note||'');showToast(farmCloudMode==='sample'?'Simulated climate example refreshed.':'NASA POWER history downloaded and saved in this browser.');}catch(e){showToast('Climate download failed: '+e.message,true);}finally{b.disabled=false;b.textContent=farmCloudMode==='sample'?'Refresh simulated climate':'Download latest NASA data';}}
+async function fetchNASA(){
+  const b=$('#fetch-nasa');
+  b.disabled=true;b.textContent='Downloading NASA POWER…';
+  try{
+    const d=await api('/api/nasa?mode=real&days=90',{timeout:65000});
+    state.nasa=d.nasa_daily||null;
+    if(farmCloudMode==='sample'&&state.nasa?.is_real_nasa)await persist('nasa',state.nasa);
+    renderNASA(d.note||'');
+    showToast('Real NASA POWER regional history loaded'+
+      (farmCloudMode==='sample'?' in Demo Mode (browser-only cache).':'.'));
+  }catch(e){showToast('NASA POWER download failed: '+e.message,true);}
+  finally{b.disabled=false;b.textContent='Download latest NASA data';}
+}
 function cropRow(c={}){const row=document.createElement('div');row.className='crop-entry';
   const stages=['Planning','Germination','Seedling','Vegetative','Flowering','Fruiting','Maturing','Harvested'];
   row.innerHTML=`<div class="crop-entry-heading"><span>Crop</span><button class="remove-crop" title="Remove crop">×</button></div>
@@ -830,7 +858,7 @@ async function loadAccount(){
             {id:'demo-harvest',date:day(9),kind:'harvest',crop:'Potato',note:'SIMULATED: Example harvest preparation.'}
           ]);
         }
-        $('#fetch-nasa').textContent='Refresh simulated climate';
+        $('#fetch-nasa').textContent='Download latest NASA data';
       }
       $('#farm-cloud-refresh').classList.toggle('hidden',farmCloudMode==='sample');
       if(demo)cloudNotice('SIMULATED DEMO · Farm data stays in this browser; no TigerData access.');

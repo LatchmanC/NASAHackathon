@@ -8,6 +8,8 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import logging
+import time
+from functools import lru_cache
 import math
 import re
 import xml.etree.ElementTree as ET
@@ -200,14 +202,67 @@ def _safe_fetch(name, fn, lat, lon):
                 "message": "Provider unavailable. No default or synthetic numbers substituted."}
 
 
-from demo_data import sample_session, soil_context as synthetic_soil_context
+from demo_data import sample_session
+
+def _build_public_context(lat, lon):
+    """Query independent PUBLIC providers and convert results to source-labelled JSON."""
+    # These independent public providers should never hold one another up.
+    providers = {
+        "climate": _power_climatology,
+        "terrain": _usgs_terrain,
+        "water": _usgs_water,
+        "land_cover": _usda_cdl,
+    }
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {name: pool.submit(_safe_fetch, name, fn, lat, lon)
+                   for name, fn in providers.items()}
+        results = {name: future.result() for name, future in futures.items()}
+    prism = closest_prism_reference(lat, lon)
+    response = {
+        "status": "ok", "location": {"latitude": lat, "longitude": lon},
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "climate": results["climate"],
+        "terrain": results["terrain"],
+        "water": results["water"],
+        "land_cover": results["land_cover"],
+        "prism_reference": prism,
+        "other_sources": [
+            {"name": "USDA Cropland Data Layer", "status": "connected",
+             "url": "https://nassgeodata.gmu.edu/CropScape/",
+             "note": "Exact EPSG:5070 point-classification requests for 2024 and 2025; land cover is not verified crop history."},
+            {"name": "USDA NASS QuickStats", "status": "reference_only",
+             "url": "https://quickstats.nass.usda.gov/",
+             "note": "County-specific yield queries need a NASS API key and verified county/commodity identifiers."},
+            {"name": "USDA AMS Market News", "status": "reference_only",
+             "url": "https://mymarketnews.ams.usda.gov/",
+             "note": "Hardcoded commodity prices in the example are not live market quotes."},
+            {"name": "OpenET", "status": "reference_only",
+             "url": "https://openetdata.org/",
+             "note": "Farm-point ET requires the applicable access/API authorization."}
+        ]
+    }
+
+    return response
+
+@lru_cache(maxsize=48)
+def _demo_public_context(lat:float,lon:float,cache_bucket:int):
+    # A process-local TTL cache reduces public upstream calls. Never access
+    # another farmer's TigerData soil documents or store this sample in SQL.
+    return {**_build_public_context(lat,lon),"demo":True,
+            "public_provider_data":True,"cache":"public_demo_memory_only",
+            "note":"Real public regional estimates for example/demo coordinates. "
+                   "ESP32 readings and calendar tasks remain simulated."}
 
 def install_soil_context_routes(app):
     @app.get("/api/soil/context")
     def soil_context(request: Request, latitude: float, longitude: float, refresh: bool = False):
         if sample_session(request):
             lat, lon = _coords(latitude, longitude)
-            return synthetic_soil_context(lat, lon)
+            if not (24 <= lat <= 50 and -125 <= lon <= -66):
+                return {"status":"outside_coverage","demo":True,
+                        "message":"US soil context sources cover the contiguous USA.",
+                        "location":{"latitude":lat,"longitude":lon}}
+            return _demo_public_context(round(lat,5),round(lon,5),int(time.time()//3600))
         owner = _owner(request)
         lat, lon = _coords(latitude, longitude)
         if not (24 <= lat <= 50 and -125 <= lon <= -66):
@@ -218,42 +273,9 @@ def install_soil_context_routes(app):
             if cached:
                 return cached
 
-        # These independent public providers should never hold one another up.
-        providers = {
-            "climate": _power_climatology,
-            "terrain": _usgs_terrain,
-            "water": _usgs_water,
-            "land_cover": _usda_cdl,
-        }
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            futures = {name: pool.submit(_safe_fetch, name, fn, lat, lon)
-                       for name, fn in providers.items()}
-            results = {name: future.result() for name, future in futures.items()}
-        prism = closest_prism_reference(lat, lon)
-        response = {
-            "status": "ok", "location": {"latitude": lat, "longitude": lon},
-            "checked_at": datetime.now(timezone.utc).isoformat(),
-            "climate": results["climate"],
-            "terrain": results["terrain"],
-            "water": results["water"],
-            "land_cover": results["land_cover"],
-            "prism_reference": prism,
-            "other_sources": [
-                {"name": "USDA Cropland Data Layer", "status": "connected",
-                 "url": "https://nassgeodata.gmu.edu/CropScape/",
-                 "note": "Exact EPSG:5070 point-classification requests for 2024 and 2025; land cover is not verified crop history."},
-                {"name": "USDA NASS QuickStats", "status": "reference_only",
-                 "url": "https://quickstats.nass.usda.gov/",
-                 "note": "County-specific yield queries need a NASS API key and verified county/commodity identifiers."},
-                {"name": "USDA AMS Market News", "status": "reference_only",
-                 "url": "https://mymarketnews.ams.usda.gov/",
-                 "note": "Hardcoded commodity prices in the example are not live market quotes."},
-                {"name": "OpenET", "status": "reference_only",
-                 "url": "https://openetdata.org/",
-                 "note": "Farm-point ET requires the applicable access/API authorization."}
-            ]
-        }
-        # Cache only actual source results and sample metadata, never estimated weather.
-        if all(v.get("status") != "unavailable" for v in results.values()):
-            _cache_put(owner, lat, lon, "soil_context_v2", response)
+        response=_build_public_context(lat,lon)
+        # Cache only actual public provider results for this authenticated account.
+        if all((response.get(key) or {}).get("status")!="unavailable"
+               for key in ("climate","terrain","water","land_cover")):
+            _cache_put(owner,lat,lon,"soil_context_v2",response)
         return response
