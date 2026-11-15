@@ -178,15 +178,29 @@ def _read_all(conn, account_key):
 
 def _write(conn, account_key, section, value, expected):
     with conn.cursor() as cur:
-        cur.execute("""INSERT INTO cropoganda_farm_documents
+        cur.execute("""SELECT revision FROM cropoganda_farm_documents
+                       WHERE account_key=%s AND section=%s FOR UPDATE""",
+                    (account_key,section))
+        existing=cur.fetchone()
+        if existing is not None:
+            if int(existing[0])!=expected:
+                raise HTTPException(409,"Farm data changed on another device. Reload before saving.")
+            cur.execute("""UPDATE cropoganda_farm_documents
+                           SET value=%s, revision=revision+1,updated_at=now()
+                           WHERE account_key=%s AND section=%s
+                           RETURNING revision""",
+                        (Jsonb(value),account_key,section))
+        else:
+            if expected!=0:
+                raise HTTPException(409,"Farm data changed on another device. Reload before saving.")
+            # A concurrent first write wins; never overwrite it without a
+            # fresh read and explicit revision match.
+            cur.execute("""INSERT INTO cropoganda_farm_documents
                            (account_key,section,value,revision,updated_at)
-                       VALUES (%s,%s,%s,1,now())
-                       ON CONFLICT (account_key,section) DO UPDATE
-                       SET value=EXCLUDED.value,
-                           revision=cropoganda_farm_documents.revision+1,
-                           updated_at=now()
-                       WHERE cropoganda_farm_documents.revision=%s
-                       RETURNING revision""",(account_key,section,Jsonb(value),expected))
+                           VALUES (%s,%s,%s,1,now())
+                           ON CONFLICT DO NOTHING
+                           RETURNING revision""",
+                        (account_key,section,Jsonb(value)))
         updated=cur.fetchone()
     if not updated:
         raise HTTPException(409,"Farm data changed on another device. Reload before saving.")
