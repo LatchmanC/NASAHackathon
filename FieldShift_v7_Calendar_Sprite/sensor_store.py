@@ -6,6 +6,7 @@ import os, math, json, hashlib, secrets
 from datetime import datetime, timezone
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, model_validator
+from tigerdata_store import enabled as tiger_enabled, live_snapshot as tiger_live, record as tiger_record, new_share_version as tiger_revoke
 
 METRIC_BOUNDS={'temperature_c':(-60,85),'humidity_pct':(0,100),'pressure_hpa':(300,1200),
                'altitude_m':(-1000,10000),'rain_wetness_pct':(0,100),'light_pct':(0,100),
@@ -33,13 +34,18 @@ class SensorPayload(BaseModel):
         return self
 
 def configured():
-    return bool(os.getenv('BLOB_READ_WRITE_TOKEN') or os.getenv('BLOB_STORE_ID'))
+    return bool(os.getenv('BLOB_READ_WRITE_TOKEN') or os.getenv('BLOB_STORE_ID')) or tiger_enabled()
 
 def path_for(owner):
     if not isinstance(owner,str) or not owner or len(owner)>300:raise ValueError('Owner required')
     return 'esp32/v1/'+hashlib.sha256(owner.encode()).hexdigest()+'/snapshot.json'
 
 def read_snapshot(owner):
+    # TigerData holds the immediate/live reading. Retain the private Blob fallback
+    # for deployments not yet connected to TigerData and earlier demo-era data.
+    if tiger_enabled():
+        live=tiger_live(owner)
+        if live is not None:return live
     if not configured():return None
     from vercel.blob import sync as blob
     from vercel.blob.errors import BlobNotFoundError
@@ -54,6 +60,8 @@ def read_snapshot(owner):
     except Exception as e:raise HTTPException(503,'Sensor storage could not be reached') from e
 
 def save_snapshot(owner, reading, old):
+    if tiger_enabled():
+        return tiger_record(owner,reading)
     if not configured():raise HTTPException(503,'Sensor storage is not configured')
     from vercel.blob import sync as blob
     latest={k:v for k,v in reading.items() if k in METRIC_BOUNDS or k in ('device_id','recorded_at')}
@@ -130,7 +138,7 @@ def revoke_shared_viewers(owner):
         raise HTTPException(409,'Upload a reading from your ESP32 before managing sharing')
     from vercel.blob import sync as blob
     current=dict(current)
-    current['share_version']=secrets.token_urlsafe(18)
+    current['share_version']=tiger_revoke(owner) if tiger_enabled() else secrets.token_urlsafe(18)
     try:
         blob.put_blob(path_for(owner),json.dumps(current,separators=(',',':')).encode(),
                       access='private',content_type='application/json',

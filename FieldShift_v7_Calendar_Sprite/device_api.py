@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from sensor_store import (SensorPayload,configured,read_snapshot,save_snapshot,age_seconds,
                           read_shared_link,save_shared_link,revoke_shared_viewers)
+from tigerdata_store import enabled as tiger_enabled
+
+def min_sensor_seconds():
+    if tiger_enabled():
+        return max(2,min(86400,int(os.getenv('CROPOGANDA_MIN_SENSOR_SECONDS','2'))))
+    return max(60,min(86400,int(os.getenv('FIELDSHIFT_MIN_SENSOR_SECONDS','300'))))
 
 def signer():
     from auth0_integration import settings
@@ -72,7 +78,7 @@ def install_device_routes(app):
         if not configured():raise HTTPException(503,'Sensor cloud storage unavailable')
         return {'device_id':req.device_id,'token':signer().dumps({'sub':owner,'device_id':req.device_id}),
                 'upload_url':'https://cropaganda.garden/api/device/ingest',
-                'expires_days':180,'min_interval_seconds':max(60,int(os.getenv('FIELDSHIFT_MIN_SENSOR_SECONDS','300')))}
+                'expires_days':180,'min_interval_seconds':min_sensor_seconds()}
 
     async def _read_payload(request):
         raw_token=request.headers.get('authorization','')
@@ -103,7 +109,7 @@ def install_device_routes(app):
         old=read_snapshot(claims['sub'])
         last=old.get('latest') if old else None
         age=age_seconds(last)
-        interval=max(60,min(86400,int(os.getenv('FIELDSHIFT_MIN_SENSOR_SECONDS','300'))))
+        interval=min_sensor_seconds()
         if age is not None and age<interval:
             wait=max(1,int(interval-age)+1)
             raise HTTPException(429,f'Wait {wait} seconds before next cloud upload',headers={'Retry-After':str(wait)})
@@ -114,7 +120,7 @@ def install_device_routes(app):
         from sms import on_new_reading
         on_new_reading(claims['sub'],row,last)
         return {'accepted':True,'received_at':row['recorded_at'],'stored_records':len(snap['readings']),
-                'min_interval_seconds':interval}
+                'min_interval_seconds':interval,'storage':'tigerdata' if tiger_enabled() else 'vercel-blob'}
 
     @app.post('/api/device/share/token')
     def generate_view_token(req:PairRequest,request:Request):

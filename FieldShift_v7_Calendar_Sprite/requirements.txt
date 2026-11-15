@@ -11,3 +11,6 @@ google-genai>=1.0
 vercel-blob>=0.5,<0.6
 # Text messages (Twilio)
 twilio>=9.0,<10
+
+# TigerData uses the PostgreSQL wire protocol. Imported only when configured.
+psycopg[binary]>=3.2,<4
