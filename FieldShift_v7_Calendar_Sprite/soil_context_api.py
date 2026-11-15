@@ -262,7 +262,7 @@ def install_soil_context_routes(app):
                 return {"status":"outside_coverage","demo":True,
                         "message":"US soil context sources cover the contiguous USA.",
                         "location":{"latitude":lat,"longitude":lon}}
-            return _demo_public_context(round(lat,3),round(lon,3),int(time.time()//3600))
+            return _demo_public_context(round(lat,5),round(lon,5),int(time.time()//3600))
         owner = _owner(request)
         lat, lon = _coords(latitude, longitude)
         if not (24 <= lat <= 50 and -125 <= lon <= -66):
