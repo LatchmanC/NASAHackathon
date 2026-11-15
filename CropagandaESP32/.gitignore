@@ -1,0 +1,3 @@
+# ESP32 secrets, Wi-Fi passwords, device tokens and trusted CA config
+device_config.h
+*.local.h
