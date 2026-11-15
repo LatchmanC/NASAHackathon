@@ -107,13 +107,13 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
         proposed=data.get('calendar_proposal')
         if isinstance(proposed,dict) and proposed.get('kind') in ('planting','watering','harvest','fertilizing','inspection','other'):
             try:
-                planned=date.fromisoformat(str(proposed.get('date','')))
                 today=date.fromisoformat(req.client_today) if req.client_today else datetime.now(timezone.utc).date()
-                # Model output is a suggestion. Resolve relative dates against the
-                # farmer's own local date, not server UTC time.
+                # Interpret relative dates first, even if the model used the word
+                # "tomorrow" rather than a formatted ISO date.
                 q=question.casefold()
                 if 'tomorrow' in q:planned=today+timedelta(days=1)
                 elif 'today' in q:planned=today
+                else:planned=date.fromisoformat(str(proposed.get('date','')))
                 if today-timedelta(days=366)<=planned<=today+timedelta(days=1825):
                     proposal={'kind':proposed['kind'],'crop':str(proposed.get('crop',''))[:70],
                               'date':planned.isoformat(),'note':str(proposed.get('note',''))[:240]}
