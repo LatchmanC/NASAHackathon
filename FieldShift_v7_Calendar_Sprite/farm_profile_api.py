@@ -43,6 +43,12 @@ class TaskWrite(BaseModel):
     id: str | None = None
 
 
+class GoogleTaskSync(BaseModel):
+    # A farmer explicitly opts into a connected Google Calendar when saving
+    # the task or clicking the Send to Google button.
+    confirmed: bool = False
+
+
 def _setup(conn):
     with conn.cursor() as cur:
         cur.execute("""CREATE TABLE IF NOT EXISTS cropoganda_farm_documents (
@@ -316,6 +322,71 @@ def install_farm_profile_routes(app):
             else:revision=row["revision"]
         return {"saved":True,"storage":"TigerData","events":sorted(events,key=lambda t:t["date"]),
                 "revision":revision}
+
+    @app.post("/api/farm/calendar/{event_id}/google-sync")
+    def sync_calendar_to_google(event_id:str,req:GoogleTaskSync,request:Request):
+        """Publish a previously saved task to THIS Auth0 owner's Google Calendar.
+
+        Database save and Google insertion are intentionally separate: a Google
+        outage must never lose a TigerData task. Google IDs are derived from
+        the stable farm task ID, so retrying after a timeout cannot duplicate
+        events even if Google succeeded but the DB association failed.
+        """
+        owner=_owner(request)
+        if not req.confirmed:
+            raise HTTPException(403,"Google Calendar sync needs the farmer's confirmation")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}",event_id):
+            raise HTTPException(400,"Invalid farm calendar task ID")
+        key=_key(owner)
+        try:
+            with _connection() as conn:
+                _setup(conn)
+                stored=_read_all(conn,key)["calendar"]
+                task=next((item for item in (stored["value"] or [])
+                           if item["id"]==event_id),None)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            log.exception("Could not look up task for Google sync")
+            raise HTTPException(503,"Farm calendar unavailable; Google sync not attempted") from exc
+        if task is None:
+            raise HTTPException(404,"Save this task to your Farm Calendar before syncing")
+        if task.get("google_event_id"):
+            return {"synced":True,"already_synced":True,
+                    "google_event_id":task["google_event_id"],
+                    "events":stored["value"],"revision":stored["revision"],
+                    "storage":"TigerData"}
+        # Import lazily: never invoke Google from a public/demo account.
+        from google_calendar_api import AddEvent, create_google_event
+        response=create_google_event(owner,AddEvent(
+            confirmed=True,request_id=event_id,date=task["date"],
+            kind=task["kind"],crop=task.get("crop",""),note=task.get("note","")))
+        google_id=response["event_id"]
+        try:
+            with _connection() as conn:
+                _setup(conn)
+                with conn.cursor() as cur:
+                    cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))",(key,))
+                section=_read_all(conn,key)["calendar"]
+                tasks=list(section["value"] or [])
+                match=next((item for item in tasks if item["id"]==event_id),None)
+                if match is None:
+                    raise HTTPException(409,"Google event was created, but the Farm Calendar task was removed during sync. Check Google Calendar.")
+                if match.get("google_event_id"):
+                    google_id=match["google_event_id"]
+                    revision=section["revision"]
+                else:
+                    match["google_event_id"]=google_id
+                    tasks=_validate("calendar",tasks)
+                    revision=_write(conn,key,"calendar",tasks,section["revision"])
+        except HTTPException:
+            raise
+        except Exception as exc:
+            log.exception("Google event created, but farm association could not be stored")
+            raise HTTPException(503,"Google event may have been created, but Farm Calendar could not record the link. Use Retry Google sync; it cannot duplicate the event.") from exc
+        return {"synced":True,"already_synced":bool(response.get("already_exists")),
+                "google_event_id":google_id,"google_url":response.get("google_url"),
+                "events":tasks,"revision":revision,"storage":"TigerData"}
 
     @app.delete("/api/farm/calendar/{event_id}")
     def delete_calendar(event_id:str,request:Request):
