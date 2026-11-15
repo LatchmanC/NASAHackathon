@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FieldShift • Test login (demo only)</title>
+<style>
+:root{--green:#1e6e4e;--dark:#163b2c;--pale:#e9f4ed;--bg:#f5f8f5;--line:#dbe7df;--muted:#617569}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Arial;background:var(--bg);color:var(--dark)}
+button,input{font:inherit}button{cursor:pointer}.demo{background:#fff5dc;color:#795209;border-bottom:1px solid #f0dfb1;padding:10px 20px;font-size:13px;text-align:center}
+.page{min-height:calc(100vh - 40px);display:grid;place-items:center;padding:32px 18px}
+.login{width:min(430px,100%);background:white;border:1px solid var(--line);border-radius:24px;box-shadow:0 20px 70px #1d3e2718;padding:35px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:25px;margin-bottom:34px}
+.seed{background:#e4f3e8;border-radius:16px;display:grid;place-items:center;font-size:30px;width:52px;height:52px}
+h1{font-size:29px;letter-spacing:-.7px;margin:0}p{line-height:1.5}.sub{margin:9px 0 26px;color:var(--muted)}
+label{display:block;font-size:13px;font-weight:700;margin:17px 0 8px}
+input{display:block;width:100%;border:1px solid #cbdcd0;padding:14px 15px;border-radius:11px;outline-color:#67a47f;background:#fdfefd}
+.primary{width:100%;background:var(--green);color:white;border:0;border-radius:11px;padding:14px;font-weight:700;margin-top:23px}
+.primary:hover{background:#155c40}.hint{background:var(--pale);border-radius:12px;margin-top:22px;padding:14px;font-size:13px;line-height:1.7}
+.error{margin:11px 0 0;color:#ad3333;font-size:13px;min-height:20px}.fine{font-size:12px;color:var(--muted);margin-top:18px;text-align:center}
+#app{display:none;min-height:calc(100vh - 40px)}aside{width:235px;background:white;border-right:1px solid var(--line);padding:25px;position:sticky;top:0;align-self:start;height:calc(100vh - 40px)}
+.apphead{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;margin-bottom:45px}
+nav button{display:block;width:100%;margin:6px 0;border:0;border-radius:12px;padding:13px;text-align:left;background:none;color:#526a5c;font-weight:700}
+nav button.active{background:var(--pale);color:var(--green)}
+.logout{margin-top:30px;border:1px solid #d2e2d8;background:white;border-radius:9px;padding:11px;width:100%;color:var(--green);font-weight:700}
+main{padding:35px;flex:1;max-width:1140px;margin:auto}#shell{display:flex}
+.kicker{text-transform:uppercase;color:var(--green);font-size:12px;font-weight:800;letter-spacing:1.1px}
+h2{font-size:32px;letter-spacing:-.8px;margin:6px 0}.row{display:flex;gap:14px;flex-wrap:wrap}.tile{flex:1;min-width:175px;background:#fff;border:1px solid var(--line);border-radius:17px;padding:22px}
+.tile .muted{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:9px}
+.value{font-weight:800;font-size:26px}.badge{font-size:11px;color:#36835d;background:#e6f5eb;border-radius:30px;padding:5px 10px;display:inline-block}
+.section{margin-top:24px;background:white;border:1px solid var(--line);border-radius:17px;padding:24px}
+.section h3{margin:0 0 18px}.crop{border-bottom:1px solid var(--line);padding:13px 2px;display:flex;justify-content:space-between;gap:10px}
+.crop:last-child{border:0}.muted{color:var(--muted)}
+.notice{background:#f0f6f1;color:#3c7152;padding:13px 16px;margin:19px 0;border-radius:12px;font-size:13px}
+#screen-live,#screen-nasa{display:none}
+@media(max-width:780px){aside{width:auto;position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:14px}#shell{display:block}nav{display:flex;gap:5px;overflow:auto}nav button{white-space:nowrap;font-size:12px;margin:0}aside .apphead{margin-bottom:14px}main{padding:22px 16px}h2{font-size:26px}.logout{max-width:160px;margin-top:9px}}
+</style></head><body>
+<div class="demo">🧪 <strong>UI DEMO ONLY:</strong> This test login is not Auth0 and cannot access production farm data, APIs, or Gemini. Never use these credentials for real accounts.</div>
+<div class="page" id="loginPage">
+  <div class="login">
+    <div class="logo"><span class="seed">🌱</span>FieldShift</div>
+    <h1>Welcome back</h1><p class="sub">Sign in to preview your farming dashboard.</p>
+    <form id="loginForm" autocomplete="off">
+      <label for="username">Username</label><input id="username" name="username" value="test" required autocomplete="off">
+      <label for="password">Password</label><input id="password" name="password" type="password" placeholder="Enter password" required autocomplete="off">
+      <p class="error" id="error" role="alert"></p>
+      <button class="primary" type="submit">Sign in to Test Farm →</button>
+    </form>
+    <div class="hint"><strong>Test profile</strong><div>Username: <code>test</code></div><div>Password: <code>test</code></div></div>
+    <p class="fine">All information is fictional, displayed locally in this page.</p>
+  </div>
+</div>
+<div id="app">
+ <div id="shell"><aside>
+ <div class="apphead"><span class="seed" style="width:40px;height:40px;font-size:22px">🌱</span> FieldShift</div>
+ <nav aria-label="Dashboard sections">
+  <button data-screen="crops" class="active">🌿 Crop Management</button>
+  <button data-screen="live">📈 Live Sensor Data</button>
+  <button data-screen="nasa">☀ NASA POWER Daily</button>
+ </nav><div class="notice">Test account · <strong>test</strong></div><button class="logout" id="logout">Sign out</button>
+ </aside><main>
+ <div class="kicker">FieldShift • Demo profile</div><h2>Welcome to Test Farm</h2>
+ <p class="muted" style="margin-top:0">San Diego, California · 5 acres · Signed in as <strong>test</strong></p>
+ <div class="notice">Sample data only. Your real Auth0 profile and TigerData account storage are not connected to this screen.</div>
+ <div id="screen-crops">
+   <div class="row"><div class="tile"><span class="muted">Total farm area</span><div class="value">5 acres</div></div><div class="tile"><span class="muted">Allocated area</span><div class="value">4.5 acres</div></div><div class="tile"><span class="muted">Active crops</span><div class="value">3</div></div></div>
+   <div class="section"><h3>🌾 Your crops <span class="badge">Demo records</span></h3>
+    <div class="crop"><div><strong>Tomato</strong><br><small class="muted">Planning · Add planting date</small></div><b>1.5 acres</b></div>
+    <div class="crop"><div><strong>Corn</strong><br><small class="muted">Growing · Planted October 2</small></div><b>2 acres</b></div>
+    <div class="crop"><div><strong>Potato</strong><br><small class="muted">Planning · Add variety</small></div><b>1 acre</b></div>
+   </div>
+   <div class="section"><h3>📅 Upcoming farm calendar</h3><div class="crop"><span>Nov 18 · Inspect irrigation</span><span class="badge">Scheduled</span></div><div class="crop"><span>Nov 21 · Review corn growth</span><span class="badge">Scheduled</span></div></div>
+   <div class="section"><h3>🌱 Fieldy says</h3><p>Check the weather before planting your next crop, and add planting dates to get a more useful harvest timeline.</p><small class="muted">This is a fixed example, not a Gemini request.</small></div>
+ </div>
+ <div id="screen-live">
+   <div class="row"><div class="tile"><span class="muted">Air temperature</span><div class="value">24.7°C</div></div><div class="tile"><span class="muted">Humidity</span><div class="value">53%</div></div><div class="tile"><span class="muted">Soil moisture</span><div class="value">47%</div></div></div>
+   <div class="notice">These are fixed sample values, not readings from an ESP32. Actual hardware integration is pending.</div>
+ </div>
+ <div id="screen-nasa">
+   <div class="row"><div class="tile"><span class="muted">Regional temperature</span><div class="value">22.8°C</div></div><div class="tile"><span class="muted">Precipitation</span><div class="value">4.2 mm</div></div></div>
+   <div class="notice">Example regional values only. This test page does not contact the NASA POWER API.</div>
+ </div>
+ </main></div>
+</div>
+<script>
+(function(){
+  'use strict';
+  const form=document.getElementById('loginForm');
+  const logInPage=document.getElementById('loginPage');
+  const app=document.getElementById('app');
+  function render(signedIn){
+    logInPage.style.display=signedIn?'none':'grid';
+    app.style.display=signedIn?'block':'none';
+  }
+  function select(name){
+    ['crops','live','nasa'].forEach(function(key){
+      document.getElementById('screen-'+key).style.display=key===name?'block':'none';
+    });
+    document.querySelectorAll('[data-screen]').forEach(function(b){
+      b.classList.toggle('active',b.dataset.screen===name);
+    });
+  }
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    const u=document.getElementById('username').value.trim();
+    const p=document.getElementById('password').value;
+    if(u==='test'&&p==='test'){
+      document.getElementById('error').textContent='';
+      document.getElementById('password').value='';
+      sessionStorage.setItem('fieldshift_ui_test_demo','1');
+      select('crops');render(true);
+    }else{
+      document.getElementById('error').textContent='Incorrect demo credentials. Use test / test.';
+    }
+  });
+  document.getElementById('logout').addEventListener('click',function(){
+    sessionStorage.removeItem('fieldshift_ui_test_demo');render(false);
+  });
+  document.querySelectorAll('[data-screen]').forEach(function(b){
+    b.addEventListener('click',function(){select(b.dataset.screen);});
+  });
+  select('crops');
+  render(sessionStorage.getItem('fieldshift_ui_test_demo')==='1');
+})();
+</script>
+</body></html>
