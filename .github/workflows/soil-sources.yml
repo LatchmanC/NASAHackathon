@@ -37,6 +37,12 @@ jobs:
         run: |
           node --check public/static/soil-rotation.js
           node --check public/static/app.js
+      - name: Fieldy context and Gemini conversation tests
+        run: python -m unittest discover -s tests -p 'test_fieldy*.py' -v
+      - name: Fieldy browser conversation tests
+        run: node --test tests/test_fieldy_frontend.cjs
+      - name: Check Fieldy Python syntax
+        run: python -m compileall -q advisor_core.py fieldy_context.py
       - name: Check farm profile backend syntax
         run: python -m compileall -q farm_profile_api.py
       - name: Live USDA point diagnostic (non-blocking)
