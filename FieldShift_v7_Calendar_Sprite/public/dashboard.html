@@ -144,10 +144,18 @@
           <label for="farm-notes">Soil / irrigation / other notes (optional)</label><textarea id="farm-notes" rows="3" placeholder="Soil texture, irrigation, goals, known constraints..."></textarea><div class="form-actions"><button class="secondary-btn" id="save-farm">Save farm plan</button><span class="muted" id="plan-save-status"></span></div>
         </section>
           <section class="card advisor-panel">
-            <div class="card-heading"><div><h2>Meet Fieldy</h2><p class="muted">Your Gemini-powered growing companion</p></div><span class="ai-sparkle" aria-hidden="true">✦</span></div>
+            <div class="card-heading fieldy-heading">
+              <div><h2>Meet Fieldy</h2><p class="muted">Your conversational crop &amp; soil advisor</p></div>
+              <span class="gemini-watermark" aria-label="Fieldy powered by Google Gemini"><span class="gemini-symbol" aria-hidden="true">✦</span> Powered by <strong>Gemini</strong></span>
+            </div>
             <div class="advisor-stage">
               <div class="advisor-character"><img src="/static/fieldy.svg" width="112" height="144" alt="Fieldy, a friendly little seedling mascot"><span class="advisor-name">FIELDY</span></div>
-              <div class="speech-bubble" id="advice-output" role="status" aria-live="polite"><strong>Hi, farmer! 🌱</strong><p>Tell me about your crops and I'll help you plan your next steps using available field and NASA data.</p></div>
+              <div class="fieldy-chat-panel">
+                <div class="fieldy-chat-toolbar"><span>Conversation · This tab only</span><button type="button" class="secondary-btn" id="fieldy-clear-chat">Clear chat</button></div>
+                <div id="fieldy-chat-history" class="fieldy-chat-history" role="log" aria-live="polite" aria-label="Fieldy conversation">
+                  <p class="fieldy-welcome">Hi, farmer! 🌱 Ask me about your crops, farm conditions, and Soil &amp; Rotation data.</p>
+                </div>
+              </div>
             </div>
             <label for="farm-question">What would you like Fieldy to help with?</label>
             <textarea id="farm-question" rows="3" placeholder="Ask anything specific: yields, crop layout, watering, pH, planting dates, or weather..."></textarea>
@@ -161,7 +169,7 @@
                 <button class="secondary-btn" id="fieldy-calendar-no" type="button">No, thanks</button>
               </div>
             </div>
-            <p class="footnote">Fieldy uses Gemini 3.5 Flash-Lite on the Python backend. Advice is conditional, not a verified yield or severe-weather forecast.</p>
+            <p class="footnote">AI responses are generated with Google Gemini for signed-in accounts. Conversation history stays in this browser tab's session storage; it is sent with your next question but not saved to TigerData. Soil survey, archive, forecasts, and field-sensor measurements are identified separately. Advice is not a verified yield or weather warning.</p>
           </section></div>
         <section class="card crop-calendar section-gap" aria-label="Farm calendar">
           <div class="card" style="padding:15px;margin-bottom:18px">
