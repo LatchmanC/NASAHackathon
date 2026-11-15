@@ -7,6 +7,8 @@ import json
 import math
 import os
 import logging
+import time
+from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, Request
 from device_api import _owner
@@ -320,15 +322,35 @@ def _query_smap(lat,lon):
             "resolution_km":9,"units":"m³/m³","dataset":SMAP_COLLECTION}
 
 
-from demo_data import sample_session, soil_profile as synthetic_soil_profile
+from demo_data import sample_session
+
+@lru_cache(maxsize=64)
+def _demo_public_usda(lat:float,lon:float,hour:int):
+    """Public USDA Soil Data Access only, without account database/cache."""
+    try:
+        result=_query_usda(lat,lon)
+    except Exception:
+        logger.exception("USDA soil service unavailable in public demo")
+        return {"status":"unavailable","source":USDA_SOURCE,
+                "message":"USDA Soil Data Access is unavailable for this location.",
+                "location":{"latitude":lat,"longitude":lon}}
+    return {**result,"demo":True,"public_provider_data":True,
+            "source":USDA_SOURCE,"location":{"latitude":lat,"longitude":lon},
+            "checked_at":_now().isoformat(),"cache":"public_demo_memory_only"}
+
 
 def install_soil_rotation_routes(app):
     @app.get("/api/soil/profile")
     def soil_profile(request:Request,latitude:float,longitude:float,refresh:bool=False):
-        # Public demo must not read any real account or query USDA/TigerData.
+        # Public demo uses only PUBLIC USDA lookups (no account or TigerData).
         if sample_session(request):
             lat,lon=_coords(latitude,longitude)
-            return synthetic_soil_profile(lat,lon)
+            if not (24<=lat<=72 and -180<=lon<=-60):
+                return {"status":"outside_us_coverage","demo":True,
+                        "source":USDA_SOURCE,
+                        "message":"Detailed USDA soil surveys are not available at this point.",
+                        "location":{"latitude":lat,"longitude":lon}}
+            return _demo_public_usda(round(lat,3),round(lon,3),int(time.time()//3600))
         owner=_owner(request)
         lat,lon=_coords(latitude,longitude)
         if not (24<=lat<=72 and -180<=lon<=-60):
