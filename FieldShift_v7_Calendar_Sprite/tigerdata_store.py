@@ -8,6 +8,16 @@ import hashlib
 import os
 import secrets
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
+
+HISTORY_ZONE=ZoneInfo('America/New_York')
+
+def _eastern_bounds(day):
+    d=_day(day)
+    start=datetime(d.year,d.month,d.day,tzinfo=HISTORY_ZONE).astimezone(timezone.utc)
+    following=d+timedelta(days=1)
+    stop=datetime(following.year,following.month,following.day,tzinfo=HISTORY_ZONE).astimezone(timezone.utc)
+    return start,stop
 from fastapi import HTTPException
 
 def enabled():
@@ -95,7 +105,7 @@ def available_dates(owner):
     """Only show dates with actual archived ESP32 measurements."""
     try:
         with _connection() as conn,conn.cursor() as cur:
-            cur.execute("""SELECT DISTINCT (bucket_at AT TIME ZONE 'UTC')::date AS day
+            cur.execute("""SELECT DISTINCT (bucket_at AT TIME ZONE 'America/New_York')::date AS day
                            FROM cropoganda_sensor_history WHERE account_key=%s
                            ORDER BY day DESC LIMIT 1200""",(_key(owner),))
             return [row[0].isoformat() for row in cur.fetchall()]
@@ -106,12 +116,14 @@ def available_dates(owner):
 def dates(owner,year,month):
     if not (2020<=year<=2100 and 1<=month<=12):
         raise HTTPException(400,'Invalid month')
-    start=datetime(year,month,1,tzinfo=timezone.utc)
-    stop=(start.replace(year=year+1,month=1) if month==12 else
-          start.replace(month=month+1))
+    start,_=_eastern_bounds(f'{year:04d}-{month:02d}-01')
+    if month==12:
+        stop,_=_eastern_bounds(f'{year+1:04d}-01-01')
+    else:
+        stop,_=_eastern_bounds(f'{year:04d}-{month+1:02d}-01')
     try:
         with _connection() as conn,conn.cursor() as cur:
-            cur.execute("""SELECT (bucket_at AT TIME ZONE 'UTC')::date,count(*)
+            cur.execute("""SELECT (bucket_at AT TIME ZONE 'America/New_York')::date,count(*)
                            FROM cropoganda_sensor_history
                            WHERE account_key=%s AND bucket_at>=%s AND bucket_at<%s
                            GROUP BY 1 ORDER BY 1""",(_key(owner),start,stop))
@@ -120,14 +132,13 @@ def dates(owner,year,month):
     except Exception as exc:raise HTTPException(503,'Could not load TigerData dates') from exc
 
 def times(owner,day):
-    d=_day(day)
-    start=datetime(d.year,d.month,d.day,tzinfo=timezone.utc)
+    start,stop=_eastern_bounds(day)
     try:
         with _connection() as conn,conn.cursor() as cur:
             cur.execute("""SELECT bucket_at,observed_at,device_id
                            FROM cropoganda_sensor_history
                            WHERE account_key=%s AND bucket_at>=%s AND bucket_at<%s
-                           ORDER BY bucket_at""",(_key(owner),start,start+timedelta(days=1)))
+                           ORDER BY bucket_at""",(_key(owner),start,stop))
             return [{'bucket_at':b.isoformat(),'recorded_at':o.isoformat(),'device_id':dev}
                     for b,o,dev in cur.fetchall()]
     except HTTPException:raise
@@ -139,7 +150,7 @@ def archived_reading(owner,day,bucket):
         b=datetime.fromisoformat(bucket.replace('Z','+00:00')).astimezone(timezone.utc)
     except (ValueError,TypeError,AttributeError) as exc:
         raise HTTPException(400,'Invalid snapshot time') from exc
-    if b.date().isoformat()!=day:
+    if b.astimezone(HISTORY_ZONE).date().isoformat()!=day:
         raise HTTPException(400,'Snapshot time does not match selected date')
     try:
         with _connection() as conn,conn.cursor() as cur:
@@ -156,7 +167,7 @@ def _day(s):
         if not (2020<=d.year<=2100):raise ValueError('Invalid year')
         return d
     except (ValueError,TypeError):
-        raise HTTPException(400,'Invalid UTC date')
+        raise HTTPException(400,'Invalid date')
 
 def save_nasa(owner,lat,lon,rows):
     from psycopg.types.json import Jsonb

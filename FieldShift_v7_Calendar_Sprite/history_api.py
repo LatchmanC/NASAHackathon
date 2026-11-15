@@ -31,17 +31,17 @@ def install_history_routes(app):
     def status(request:Request):
         _owner(request)
         return {'configured':tiger.enabled(),
-                'archive_interval_minutes':10,'date_basis':'UTC',
+                'archive_interval_minutes':10,'date_basis':'America/New_York',
                 'live_mode':'TigerData live row' if tiger.enabled() else 'Legacy Vercel Blob (slower)',
                 'note':'Connect TigerData and run the SQL schema to enable cloud history.' if not tiger.enabled()
-                       else 'Live readings updated on every accepted device upload; the first reading in each UTC 10-minute window is archived.'}
+                       else 'Live readings updated on every accepted device upload; the first reading in each UTC 10-minute window is archived, grouped into Eastern local dates.'}
 
     @app.get('/api/history/dates')
     def available_dates(request:Request,view:str='auto'):
         if not tiger.enabled():
             raise HTTPException(503,'TigerData is not connected')
         account,access=selected_account(request,view)
-        return {'dates':tiger.available_dates(account),'sensor_access':access,'date_basis':'UTC'}
+        return {'dates':tiger.available_dates(account),'sensor_access':access,'date_basis':'America/New_York'}
 
     @app.get('/api/history/days')
     def days(request:Request,year:int,month:int,view:str='auto'):
@@ -49,7 +49,7 @@ def install_history_routes(app):
             raise HTTPException(503,'TigerData is not connected')
         account,access=selected_account(request,view)
         return {'days':tiger.dates(account,year,month),'sensor_access':access,
-                'date_basis':'UTC'}
+                'date_basis':'America/New_York'}
 
     @app.get('/api/history/snapshots')
     def snapshots(request:Request,day:str,view:str='auto'):
@@ -57,7 +57,7 @@ def install_history_routes(app):
             raise HTTPException(503,'TigerData is not connected')
         account,access=selected_account(request,view)
         return {'snapshots':tiger.times(account,day),'day':day,
-                'sensor_access':access,'date_basis':'UTC'}
+                'sensor_access':access,'date_basis':'America/New_York'}
 
     @app.get('/api/history/entry')
     def entry(request:Request,day:str,bucket:str,latitude:float,longitude:float,view:str='auto'):
@@ -73,7 +73,7 @@ def install_history_routes(app):
         return {'day':day,'bucket_at':bucket,'sensor':sensor,
                 'nasa':nasa,'sensor_access':access,
                 'nasa_source':'NASA POWER regional historical daily observations' if nasa else 'not stored for this day/location',
-                'date_basis':'UTC'}
+                'date_basis':'America/New_York'}
 
     @app.post('/api/history/sync-nasa')
     def sync_nasa(request:Request,req:NasaSyncRequest):
@@ -94,4 +94,4 @@ def install_history_routes(app):
         rows=result.get('rows') or []
         count=tiger.save_nasa(subject,lat,lon,rows)
         return {'stored_days':count,'location':{'latitude':lat,'longitude':lon},
-                'period':result.get('period'),'source':'NASA POWER daily','date_basis':'UTC'}
+                'period':result.get('period'),'source':'NASA POWER daily','date_basis':'America/New_York'}

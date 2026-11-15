@@ -5,6 +5,9 @@ const $$=s=>Array.from(document.querySelectorAll(s));
 const state={tab:'crops',overview:null,plan:null,history:[],nasa:null,localDays:{},toastTimer:null,locations:null,tigerLive:false};
 const units={temperature_c:'°C',humidity_pct:'%',pressure_hpa:'hPa',altitude_m:'m',ph:'pH',rain_wetness_pct:'%',light_pct:'%',gas_index:'/100',soil_moisture_pct:'%'};
 const metricInfo=[['temperature_c','Air temperature','☀'],['humidity_pct','Humidity','◉'],['pressure_hpa','Air pressure','⛅'],['soil_moisture_pct','Soil moisture index','◈'],['rain_wetness_pct','Rain plate wetness','☂'],['light_pct','Light sensor index','☼'],['gas_index','Gas sensor index','◌'],['altitude_m','Estimated altitude','△'],['ph','Acidity (pH)','◍']];
+// Live UI deliberately excludes the unconnected gas and pH inputs.
+const liveMetricInfo=metricInfo.filter(([key])=>key!=='gas_index'&&key!=='ph');
+const easternTime=t=>{if(!t)return 'Never';const d=new Date(t);return Number.isNaN(d.getTime())?String(t):d.toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'});};
 const nasaInfo={temperature_c:['Mean temperature','°C'],temperature_max_c:['Max temperature','°C'],temperature_min_c:['Min temperature','°C'],humidity_pct:['Relative humidity','%'],pressure_hpa:['Surface pressure','hPa'],precipitation_mm:['Daily precipitation','mm/day'],solar_mj_m2_day:['Solar radiation','MJ/m²/day'],wind_2m_ms:['Wind at 2 m','m/s'],wind_10m_ms:['Wind at 10 m','m/s'],dew_point_c:['Dew point','°C'],soil_wetness_fraction:['Modeled topsoil wetness','fraction']};
 const comparable={temperature_c:'temperature_c',humidity_pct:'humidity_pct',pressure_hpa:'pressure_hpa'};
 function html(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -84,12 +87,12 @@ async function loadLive(){
 function updateLive(o){const stateEl=$('#sensor-state');stateEl.className='state-chip'+(o.state==='live'?'':o.state==='offline'?' off':' warn');const names={live:'●  Live',demo:'◉  SYNTHETIC SAMPLE',stale:'◷  Sensor delayed',cloud_only:'◷  Last cloud record',offline:'○  Offline'};stateEl.textContent=names[o.state]||'Checking…';
   $('#location-label').textContent=o.location?.label||'Location not selected';$('#location-current').textContent=o.location?.label||'Location not selected';$('#side-status').textContent=o.state==='demo'?'Synthetic example only':o.state==='live'?'Receiving ESP32 data':o.pi_connected?'Station online · sensor stale':o.cloud_connected?'Station offline · cloud available':'Station offline';$('.statusdot').classList.toggle('online',o.state==='live');
   let message=o.last_reading_at?`Last sensor reading: ${localTime(o.last_reading_at)}`:'No recorded reading yet';message+=o.sensor_source==='SYNTHETIC_SAMPLE'?' · SYNTHETIC SAMPLE / NO ESP32 CONNECTED':'';message+=o.sensor_access_mode==='shared'?' · Shared device (read-only)':'';message+=o.last_cloud_sync?` · Last cloud sync: ${localTime(o.last_cloud_sync)}`:' · Cloud sync unconfirmed';if(o.pending_cloud!==null&&o.pending_cloud!==undefined)message+=` · ${o.pending_cloud} queued`;$('#sync-message').textContent=message;
-  const m=o.latest||{};$('#live-metrics').innerHTML=metricInfo.map(([key,label,icon])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${fixed(m[key])}<span class="metric-unit">${html(units[key])}</span></div><div class="metric-hint">${m[key]===undefined?'No measurement yet':o.sensor_source==='SYNTHETIC_SAMPLE'?'Synthetic sample, not an ESP32 reading':'Latest ESP32 measurement'}</div></article>`).join('');
+  const m=o.latest||{};$('#live-metrics').innerHTML=liveMetricInfo.map(([key,label,icon])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${fixed(m[key])}<span class="metric-unit">${html(units[key])}</span></div><div class="metric-hint">${m[key]===undefined?'No measurement yet':o.sensor_source==='SYNTHETIC_SAMPLE'?'Synthetic sample, not an ESP32 reading':'Latest ESP32 measurement'}</div></article>`).join('');
   $('#storage-type').textContent=o.sensor_source==='SYNTHETIC_SAMPLE'?'Sample data only':o.sensor_source==='ESP32_TIGERDATA'?'TigerData near-live':o.sensor_source==='ESP32_SHARED_READONLY'?'Shared cloud sensor feed':o.cloud_connected?'Private cloud sensor storage':'Cloud unavailable';$('#stored-count').textContent=o.cloud_record_count??'—';$('#last-cloud-sync').textContent=localTime(o.last_cloud_sync);
   renderFlags(o.flags||[]);
 }
-async function loadHistory(){try{const d=await api('/api/recorded?limit=100&offset=0');state.history=d.readings||[];const keys=['recorded_at','temperature_c','humidity_pct','pressure_hpa','soil_moisture_pct','rain_wetness_pct','light_pct','gas_index','altitude_m','ph'];$('#history-table tbody').innerHTML=state.history.length?state.history.map(r=>'<tr>'+keys.map((k,i)=>`<td>${i===0?html(String(r[k]||'—').replace('T',' ').replace('+00:00',' UTC')):fixed(r[k])}</td>`).join('')+'</tr>').join(''):'<tr><td colspan="10">No cloud records yet.</td></tr>';$('#history-note').textContent=`Showing ${state.history.length} latest cloud records; ${d.total||0} total.`;}catch(e){$('#history-note').textContent='Cloud receiver unavailable: '+e.message;}}
-function exportCSV(){if(!state.history.length){showToast('There are no displayed readings to export.',true);return;}const columns=['recorded_at','device_id',...Object.keys(units)];const csv=[columns.join(','),...state.history.map(row=>columns.map(c=>'"'+String(row[c]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fieldshift_recent_readings.csv';a.click();URL.revokeObjectURL(url);showToast('Exported current history rows.');}
+async function loadHistory(){try{const d=await api('/api/recorded?limit=100&offset=0');state.history=d.readings||[];const keys=['recorded_at','temperature_c','humidity_pct','pressure_hpa','soil_moisture_pct','rain_wetness_pct','light_pct','altitude_m'];$('#history-table tbody').innerHTML=state.history.length?state.history.map(r=>'<tr>'+keys.map((k,i)=>`<td>${i===0?html(easternTime(r[k])):fixed(r[k])}</td>`).join('')+'</tr>').join(''):'<tr><td colspan="8">No cloud records yet.</td></tr>';$('#history-note').textContent=`Showing ${state.history.length} latest cloud records; ${d.total||0} total.`;}catch(e){$('#history-note').textContent='Cloud receiver unavailable: '+e.message;}}
+function exportCSV(){if(!state.history.length){showToast('There are no displayed readings to export.',true);return;}const columns=['recorded_at','device_id',...Object.keys(units).filter(key=>key!=='gas_index'&&key!=='ph')];const csv=[columns.join(','),...state.history.map(row=>columns.map(c=>'"'+String(row[c]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fieldshift_recent_readings.csv';a.click();URL.revokeObjectURL(url);showToast('Exported current history rows.');}
 function renderFlags(flags){const el=$('#local-flags');el.innerHTML=flags.length?'<div class="flags-title">LOCAL SENSOR FLAGS (NOT OFFICIAL WARNINGS)</div>'+flags.map(f=>`<div class="flag"><strong>${html(f.event)}</strong><small>${html(f.description)}</small></div>`).join(''):'';}
 async function loadWeather(){try{const data=await api('/api/weather?mode=live',{timeout:28000});const list=data.forecast||[];$('#weather-report').innerHTML=list.length?list.slice(0,5).map(d=>{const day=new Date(d.date+'T12:00:00Z').toLocaleDateString(undefined,{weekday:'short',timeZone:'UTC'});return `<div class="forecast-day"><strong>${html(day)}</strong><span class="weather-desc">${html(d.summary||'')}</span><span class="temp">${fixed(d.high_c,0)}° / ${fixed(d.low_c,0)}°</span><span class="rain">☂ ${fixed(d.rain_chance_pct,0)}%</span></div>`;}).join(''):'<div class="alert-unavailable">Forecast unavailable.</div>';$('#forecast-source').textContent=data.forecast_source||'';renderAlerts(data.alert_status||{});}catch(e){$('#weather-report').textContent='Forecast unavailable: '+e.message;$('#alert-section').textContent='Official alert status unavailable. Consult the relevant meteorological service.';}}
 function renderAlerts(a){const box=$('#alert-section'), alerts=a.alerts||[];if(a.status==='demo'){box.innerHTML='<div class="alert-unavailable"><strong>SIMULATION ONLY</strong> — The following example alert is fictional.</div>'+alerts.slice(0,3).map(x=>`<div class="alert-item"><strong>${html(x.event)}</strong><p>${html(x.headline||'')}</p></div>`).join('');return;}if(a.status==='live'){box.innerHTML=alerts.length?alerts.slice(0,7).map(x=>`<div class="alert-item"><strong>${html(x.event)} · ${html(x.severity)}</strong><p>${html(x.headline||'')}</p><p>Expires ${html(localTime(x.expires))}</p></div>`).join(''):'<div class="alert-clear">No active NWS alerts returned at last successful check for this point.</div>';return;}box.innerHTML='<div class="alert-unavailable">⚠ Official warnings could not be verified. An unavailable check does not mean conditions are safe. '+html(a.message||'')+'</div>';}
@@ -408,7 +411,7 @@ async function loadArchiveDates(){
     select.replaceChildren(new Option('Select a saved date',''));
     for(const day of data.dates||[]){
       const label=new Date(day+'T12:00:00Z').toLocaleDateString(undefined,
-        {weekday:'short',month:'long',day:'numeric',year:'numeric',timeZone:'UTC'});
+        {weekday:'short',month:'long',day:'numeric',year:'numeric',timeZone:'America/New_York'});
       select.add(new Option(label+' · '+day,day));
     }
     if((data.dates||[]).includes(previous))select.value=previous;
@@ -424,11 +427,11 @@ async function loadArchiveTimes(){
     const data=await api('/api/history/snapshots?day='+encodeURIComponent(day)+'&view='+encodeURIComponent(archiveView()));
     select.replaceChildren(new Option('Select a saved time',''));
     for(const snap of data.snapshots){
-      const option=new Option(new Date(snap.recorded_at).toLocaleString(undefined,{timeZone:'UTC',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' UTC · '+snap.device_id,snap.bucket_at);
+      const option=new Option(easternTime(snap.recorded_at)+' · '+snap.device_id,snap.bucket_at);
       select.add(option);
     }
     $('#archive-message').textContent=data.snapshots.length?
-      data.snapshots.length+' saved timestamp(s) found on '+day+' (UTC).':
+      data.snapshots.length+' saved timestamp(s) found on '+day+' (Eastern Time).':
       'No archived ESP32 readings on '+day+'.';
   }catch(e){
     select.replaceChildren(new Option('Saved times unavailable',''));
@@ -445,7 +448,7 @@ async function loadArchiveEntry(){
       '&view='+encodeURIComponent(archiveView());
     const d=await api('/api/history/entry?'+query,{timeout:22000});
     const reading=d.sensor||{};
-    $('#archive-sensor-time').textContent='Device '+(reading.device_id||'—')+' · '+localTime(reading.recorded_at)+
+    $('#archive-sensor-time').textContent='Device '+(reading.device_id||'—')+' · '+easternTime(reading.recorded_at)+
       ' · '+(d.sensor_access==='shared'?'Shared read-only ESP32':'Account ESP32');
     $('#archive-sensor-cards').innerHTML=metricInfo.map(([key,label,icon])=>
       '<article class="metric-card"><div class="metric-top"><span>'+html(label)+
@@ -463,7 +466,7 @@ async function loadArchiveEntry(){
         '<span class="metric-unit">'+html(nasaInfo[key]?.[1]||'')+
         '</span></div><div class="metric-hint">NASA POWER · '+html(day)+'</div></article>').join('');
       $('#archive-nasa-note').textContent='Stored NASA POWER Daily for '+day+
-        ' · Retrieved '+localTime(d.nasa.stored_at)+
+        ' · Retrieved '+easternTime(d.nasa.stored_at)+
         ' · Regional historical data; not a farm sensor measurement.';
     }else{
       $('#archive-nasa-cards').innerHTML='<div class="empty-card">No NASA POWER Daily record stored for this day and location. Use the Sync button to save available regional history.</div>';

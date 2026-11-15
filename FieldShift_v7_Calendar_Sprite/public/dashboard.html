@@ -137,7 +137,7 @@
         </div>
         <div class="card section-gap"><div class="card-heading"><div><h2>Data storage</h2><p class="muted">ESP32 readings are stored in private Blob snapshots. TigerData will be added for higher-frequency history.</p></div><span class="data-badge">Cloud history</span></div>
           <div class="stats-row compact-stats"><div class="stat-card"><span>Storage</span><strong id="storage-type">Checking</strong></div><div class="stat-card"><span>Cloud records</span><strong id="stored-count">—</strong></div><div class="stat-card"><span>Last cloud sync</span><strong id="last-cloud-sync">—</strong></div></div>
-          <details id="history-details"><summary>View recently synced readings</summary><div class="table-scroll"><table id="history-table"><thead><tr><th>Recorded UTC</th><th>Temp °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Soil %</th><th>Rain wetness %</th><th>Light %</th><th>Gas index</th><th>Altitude m</th><th>pH</th></tr></thead><tbody><tr><td colspan="10">Loading cloud readings…</td></tr></tbody></table></div><button class="secondary-btn" id="export-csv">Export displayed records as CSV</button><p class="footnote" id="history-note"></p></details>
+          <details id="history-details"><summary>View recently synced readings</summary><div class="table-scroll"><table id="history-table"><thead><tr><th>Recorded (ET)</th><th>Temp °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Soil %</th><th>Rain wetness %</th><th>Light %</th><th>Altitude m</th></tr></thead><tbody><tr><td colspan="8">Loading cloud readings…</td></tr></tbody></table></div><button class="secondary-btn" id="export-csv">Export displayed records as CSV</button><p class="footnote" id="history-note"></p></details>
         </div>
       </section>
       <section class="panel-tab hidden" id="tab-nasa">
@@ -154,10 +154,10 @@
         </div>
       </section>
       <section class="panel-tab hidden" id="tab-history">
-        <div class="heading-row"><div><div class="eyebrow">TIGERDATA + NASA POWER</div><h1>History</h1><p class="subtitle">Select a calendar day and saved 10-minute sensor snapshot, then view the recorded ESP32 data beside NASA POWER observations for that same day.</p></div><span class="data-badge">Saved snapshots · UTC</span></div>
+        <div class="heading-row"><div><div class="eyebrow">TIGERDATA + NASA POWER</div><h1>History</h1><p class="subtitle">Select a calendar day and saved 10-minute sensor snapshot, then view the recorded ESP32 data beside NASA POWER observations for that same day.</p></div><span class="data-badge">Saved snapshots · Eastern Time</span></div>
         <div class="card section-gap">
-          <div class="card-heading"><div><h2>Browse saved readings</h2><p class="muted">Each entry represents the first real reading received during a 10-minute UTC interval. Times below are UTC.</p></div></div>
-          <label for="archive-date">Saved date (UTC)</label>
+          <div class="card-heading"><div><h2>Browse saved readings</h2><p class="muted">Each entry is an actual reading saved within a 10-minute interval. Dates and times use Eastern Time (EST/EDT).</p></div></div>
+          <label for="archive-date">Saved date (Eastern Time)</label>
           <select id="archive-date" style="display:block;width:100%;min-height:54px;padding:12px;font-size:16px;border:1px solid #dce6de;border-radius:10px;background:white;margin:9px 0 17px">
             <option value="">Loading saved dates…</option>
           </select>
