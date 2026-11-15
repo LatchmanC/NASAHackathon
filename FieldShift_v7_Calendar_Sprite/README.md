@@ -1,3 +1,39 @@
+## Fieldy Gemini conversation and Soil & Rotation context
+
+- **Gemini attribution:** A visible "Powered by Gemini" badge sits beside
+  Fieldy. Public sample responses are explicitly labelled **Demonstration**
+  and are not presented as actual Gemini generations.
+- **Multi-turn conversation:** The current browser tab's dialogue is kept in
+  `sessionStorage` under a per-Auth0-user key. Reloading the same tab retains
+  the transcript; closing the tab normally ends the session. Nothing is
+  persisted to TigerData or cloud chat storage. Up to 20 chat messages are
+  retained locally, and up to 12 short previous messages are supplied to the
+  following Gemini request. The clear-chat button removes only this session's
+  dialogue.
+- **Soil & Rotation:** Fieldy uses matching farmer-owned TigerData cache
+  records for USDA NRCS map units and NASA POWER, USGS and USDA CDL context,
+  plus the historical PRISM point samples, farm crop plan and the farmer's
+  crop-guide / rotation selection. If values are only currently visible in
+  the browser, they are identified as a **browser view, not independently
+  verified by the server**. Fieldy never labels published map-unit estimates
+  as farm sensor tests and does not reuse the disabled SMAP integration.
+- **Important numbers:** Gemini can return 0–4 highlighted, attributed data
+  cards, with selective bold emphasis for actual important details. All
+  text is HTML-escaped before rendering; no model-authored HTML is executed.
+- **Calendar:** Existing Fieldy Google Calendar and farm task confirmation
+  remains opt-in; its status message appears in the same chat transcript.
+- **Deployment safety:** This feature restores the previously rolled-back
+  stable farm/calendar frontend, rather than reintroducing the automatic
+  TigerData calendar synchronization code that previously caused issues.
+
+Checks: `python -m unittest discover -s tests -p 'test_fieldy*.py' -v`,
+`node --test tests/test_fieldy_frontend.cjs`, and `node --check
+public/static/app.js`. Gemini requests require a verified Auth0 login and
+a configured `GEMINI_API_KEY`; offline tests mock the provider and do not
+make chargeable Gemini calls.
+
+---
+
 ## Farm profiles, calendar and rotation drafts in TigerData (Nov 2026)
 
 Signed-in Cropaganda accounts use TigerData as the **primary** store for their
