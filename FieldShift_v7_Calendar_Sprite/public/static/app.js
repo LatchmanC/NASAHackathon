@@ -75,6 +75,7 @@ function showFarmImportOffer(){
   const acknowledged=legacyValue('farm_cloud_import_ack');
   const candidateKeys=Object.keys(entries);
   banner.classList.toggle('hidden',candidateKeys.length===0||acknowledged===true);
+  $('#farm-import-reopen').classList.toggle('hidden',candidateKeys.length===0);
   $('#farm-import-summary').textContent=candidateKeys.length?
     'This browser has older '+candidateKeys.map(x=>x.replaceAll('_',' ')).join(', ')+' data. Import it into your account without replacing existing cloud farm plans or locations.':
     'No earlier browser data was found.';
@@ -602,6 +603,22 @@ function attach(){
   $('#calendar-today').onclick=()=>{const d=new Date();calendarState.year=d.getFullYear();calendarState.month=d.getMonth();chooseCalendarDay(todayISO());};
   $('#calendar-form').addEventListener('submit',addCalendarEvent);
   $('#farm-import-button').addEventListener('click',importBrowserFarmData);
+  $('#farm-import-reopen').addEventListener('click',()=>{
+    localStorage.removeItem(fsKey('farm_cloud_import_ack'));
+    showFarmImportOffer();
+    $('#farm-import-banner').scrollIntoView({block:'center',behavior:'smooth'});
+  });
+  $('#farm-cloud-refresh').addEventListener('click',async()=>{
+    if(farmCloudMode==='sample'){showToast('Sample farm data is stored in this browser.');return;}
+    if(!confirm('Reload your farm from TigerData? Unsaved edits on this page will be lost.'))return;
+    farmCloudMode='loading';
+    await loadFarmCloud();
+    if(farmCloudMode==='ready'){
+      await Promise.allSettled([loadPlan(),loadCalendar(),initLocations()]);
+      if(typeof soilLoad==='function')soilLoad(true);
+      showToast('Farm data refreshed from TigerData.');
+    }
+  });
   $('#farm-import-skip').addEventListener('click',()=>{
     localStorage.setItem(fsKey('farm_cloud_import_ack'),JSON.stringify(true));
     $('#farm-import-banner').classList.add('hidden');
@@ -691,6 +708,7 @@ async function loadAccount(){
         if(!saved('location'))persist('location',{mode:'coords',label:'Test Farm — San Diego, California',latitude:32.7157,longitude:-117.1611,resolution:'sample city-center coordinates'});
         if(!saved('calendar'))persist('calendar',[{id:'demo-inspection',date:'2026-11-18',kind:'inspection',crop:'Corn',note:'Check irrigation and inspect sample field'},{id:'demo-watering',date:'2026-11-21',kind:'watering',crop:'Tomato',note:'Check soil before watering'}]);
       }
+      $('#farm-cloud-refresh').classList.toggle('hidden',farmCloudMode==='sample');
       if(farmCloudMode==='sample')cloudNotice('Sample mode · Farm data remains in this browser.');
       else await loadFarmCloud();
       account.textContent='Signed in: '+(data.user?.name||data.user?.email||'Farmer')+' · ';
