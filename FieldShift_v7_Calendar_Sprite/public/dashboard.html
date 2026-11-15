@@ -6,16 +6,22 @@
   <meta name="theme-color" content="#184b3a">
   <title>Cropoganda | Farm intelligence</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/home.css">
 </head>
 <body>
 <div class="shell">
   <aside class="sidebar" aria-label="Main navigation">
-    <div class="brand"><span class="brandmark">✳</span><span><strong>Cropoganda</strong><small>FARM INTELLIGENCE</small></span></div>
-    <div class="sidetitle">DASHBOARD</div>
+    <div class="brand"><span class="brandmark" aria-hidden="true">🌽</span><span><strong>Cropoganda</strong><small>FARM INTELLIGENCE</small></span></div>
     <nav id="navigation">
-      <button class="navitem active" data-tab="crops"><span class="navicon">❋</span>Crop Management</button>
-      <button class="navitem" data-tab="live"><span class="navicon">▦</span>Live Sensor Data</button>
-      <button class="navitem" data-tab="nasa"><span class="navicon">◉</span>NASA POWER Daily</button>
+      <div class="sidetitle">OVERVIEW</div>
+      <button class="navitem active" data-tab="home"><span class="navicon">⌂</span>Home</button>
+      <div class="sidetitle">FARM OPERATIONS</div>
+      <button class="navitem" data-tab="crops"><span class="navicon">❋</span>My Farm</button>
+      <button class="navitem" data-tab="calendar"><span class="navicon">▦</span>Farm Calendar</button>
+      <button class="navitem" data-tab="fieldy"><span class="navicon">✦</span>Fieldy AI</button>
+      <div class="sidetitle">DATA &amp; INSIGHTS</div>
+      <button class="navitem" data-tab="live"><span class="navicon">◉</span>Field Sensors</button>
+      <button class="navitem" data-tab="nasa"><span class="navicon">☀</span>Weather &amp; NASA</button>
       <button class="navitem" data-tab="history"><span class="navicon">▤</span>History</button>
     </nav>
     <div class="sidebar-bottom"><div class="account-box" id="account-box" aria-live="polite">Loading account…</div><div class="sidebar-pi"><span class="statusdot"></span><div><strong>Field Station</strong><small id="side-status">Connecting...</small></div></div><p>ESP32 → SQL Cloud</p><span class="small-muted">Cropoganda field dashboard</span></div>
@@ -26,8 +32,83 @@
       <div class="location-line"><span class="pin">⌖</span> <span id="location-label">Loading location...</span></div>
       <div class="top-actions"><button class="refresh-btn" id="refresh-button">↻ Refresh</button></div>
     </header>
-    <div class="page"><div class="preview-banner">FARM DASHBOARD · Farm plans and calendar are stored in this browser. Paired ESP32 readings stay private. TigerData provides near-live updates and 10-minute archives when connected.</div>
-      <section class="panel-tab" id="tab-crops">
+    <div class="page">
+      <section class="panel-tab" id="tab-home" aria-label="Farm overview">
+        <div class="home-hero">
+          <div>
+            <small>YOUR FARM AT A GLANCE</small>
+            <h1>Your farm, in focus.</h1>
+            <p id="home-date">Loading today’s date…</p>
+            <p id="home-location-summary">Preparing your farm overview…</p>
+          </div>
+          <div class="home-hero-actions">
+            <button type="button" class="primary-btn" data-go="crops">Manage my crops</button>
+            <button type="button" class="secondary-btn" data-go="fieldy">✦ Ask Fieldy</button>
+          </div>
+        </div>
+        <button type="button" class="home-alert-link home-alert-unknown" id="home-alert-link" data-go="nasa" aria-live="polite">
+          <span class="home-alert-icon" aria-hidden="true">⚠</span>
+          <span class="home-alert-copy">
+            <span class="home-alert-eyebrow" id="home-alert-eyebrow">ALERT STATUS</span>
+            <strong class="home-alert-title" id="home-alert-title">Checking official alerts…</strong>
+            <span class="home-alert-detail" id="home-alert-detail">Only verified warnings or actual sensor conditions are highlighted.</span>
+          </span>
+          <span class="home-alert-cta" id="home-alert-cta">Weather details ›</span>
+        </button>
+        <div class="home-grid">
+          <section class="home-panel" aria-label="Current local weather">
+            <div class="home-card-heading">
+              <div><h2>Local weather</h2><p>Current conditions and a simple outlook</p></div>
+              <button class="home-text-link" type="button" data-go="nasa">Weather &amp; NASA ›</button>
+            </div>
+            <div class="home-weather-now">
+              <span style="font-size:36px" aria-hidden="true">🌤️</span>
+              <div><div class="home-temperature" id="home-weather-temperature">—</div>
+              <div class="home-condition" id="home-weather-condition">Checking local weather…</div>
+              <div class="home-weather-meta" id="home-weather-meta">Open-Meteo current conditions</div></div>
+            </div>
+            <div id="home-weather-days"><p class="home-muted">Loading the next three days…</p></div>
+            <p class="home-weather-source" id="home-weather-source">Weather from Open-Meteo, not farm sensors</p>
+          </section>
+          <section class="home-panel" aria-label="My main crops">
+            <div class="home-card-heading">
+              <div><h2>My main crops</h2><p id="home-crop-count">Loading your saved crops…</p></div>
+              <button class="home-text-link" type="button" data-go="crops">All crops ›</button>
+            </div>
+            <div id="home-crops"><p class="home-muted">Loading farm plan…</p></div>
+          </section>
+        </div>
+        <div class="home-grid home-grid-secondary">
+          <section class="home-panel" aria-label="Upcoming farm activities">
+            <div class="home-card-heading">
+              <div><h2>Coming up</h2><p id="home-task-count">Checking your calendar…</p></div>
+              <button type="button" class="home-text-link" data-go="calendar">Full calendar ›</button>
+            </div>
+            <div id="home-tasks"><p class="home-muted">Loading tasks…</p></div>
+          </section>
+          <section class="home-panel" aria-label="ESP32 sensor connection">
+            <div class="home-card-heading">
+              <div><h2>Field station</h2><p>Actual ESP32 uploads only</p></div>
+              <button type="button" class="home-text-link" data-go="live">Live sensors ›</button>
+            </div>
+            <div class="home-sensor-surface">
+              <span class="home-sensor-icon" aria-hidden="true">📡</span>
+              <div><div class="home-status-label" id="home-sensor-status">Checking device…</div>
+              <div class="home-sensor-value" id="home-sensor-value">—</div>
+              <p class="home-sensor-detail" id="home-sensor-detail">No measurements are fabricated when the ESP32 is offline.</p></div>
+            </div>
+          </section>
+        </div>
+        <div class="home-fieldy-strip">
+          <img src="/static/fieldy.svg" alt="" width="51" height="63">
+          <div><strong>Need a second opinion on your crops?</strong>
+          <p>Fieldy uses your farm plan, available historical NASA data, weather, and authenticated sensor readings when present.</p></div>
+          <button type="button" class="primary-btn" data-go="fieldy">Ask Fieldy ›</button>
+        </div>
+        <p class="home-footer-note">Farm crops and tasks currently stay in this browser. Current weather and official alerts are fetched for the saved farm location; NASA regional history and ESP32 measurements are separate sources.</p>
+      </section>
+<div class="preview-banner">FARM DASHBOARD · Farm plans and calendar are stored in this browser. Paired ESP32 readings stay private. TigerData provides near-live updates and 10-minute archives when connected.</div>
+      <section class="panel-tab hidden" id="tab-crops">
         <div class="heading-row"><div><div class="eyebrow">FARM SETUP + GEMINI</div><h1>Crop Management</h1><p class="subtitle">Tell Cropoganda where your land is, how much area you have, and which crops you're growing.</p></div><span class="data-badge">Farming advisor</span></div>
         <section class="card section-gap location-inline"><div class="card-heading"><div><h2>Farm location</h2><p class="muted">Used for NASA records, forecasts, and crop planning.</p></div><strong id="location-current">Not selected</strong></div>
           <div class="location-mode"><label><input type="radio" name="loc-mode" value="preset" checked> Country / State / City</label><label><input type="radio" name="loc-mode" value="coords"> Exact latitude / longitude</label></div>
@@ -179,9 +260,17 @@
           <p id="archive-nasa-note" class="footnote">NASA data is stored for the farm location selected under Crop Management. It may lag the current day.</p>
         </div>
       </section>
+
+      <section class="panel-tab hidden" id="tab-calendar">
+        <div class="heading-row"><div><div class="eyebrow">WORK, PLANTING &amp; REMINDERS</div><h1>Farm Calendar</h1><p class="subtitle">Plan your farm tasks, connect Google Calendar, and manage text reminders.</p></div></div>
+      </section>
+      <section class="panel-tab hidden" id="tab-fieldy">
+        <div class="heading-row"><div><div class="eyebrow">GEMINI FARM ASSISTANT</div><h1>Ask Fieldy</h1><p class="subtitle">Your growing companion for crop planning, weather context, and calendar task proposals.</p></div></div>
+      </section>
     </div>
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   </main>
 </div>
 <script src="/static/app.js" defer></script>
+<script src="/static/home.js" defer></script>
 </body></html>

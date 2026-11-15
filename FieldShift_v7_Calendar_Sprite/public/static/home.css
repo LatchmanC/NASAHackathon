@@ -1,0 +1,116 @@
+/* A calmer, approachable farm dashboard inspired by the provided crop-planning prototype. */
+:root{--canvas:#f8f9f5;--line:#e3ebe3;--shadow:0 7px 27px rgba(26,69,38,.035)}
+body{background:var(--canvas)}
+.brand{padding-bottom:23px}
+.brandmark{background:#fef0c4;color:#287247;border-radius:13px;font-size:24px;box-shadow:inset 0 0 0 2px #f6df9b}
+.sidebar{background:#fffefb}
+.sidebar .sidetitle{margin-top:19px;font-size:9px;color:#94a79b}
+.sidebar nav{overflow-y:auto;min-height:0;padding-right:3px}
+.navitem{margin:2px 0;padding:12px 14px;border-radius:10px}
+.navitem.active{background:#eaf6ed;color:#1c6442}
+.navitem .navicon{font-size:17px;width:19px;display:inline-flex;justify-content:center}
+.preview-banner{margin-top:24px;max-width:1000px;font-weight:450;font-size:11px}
+#tab-crops .planner-layout{grid-template-columns:minmax(0,1fr);max-width:1050px}
+#tab-fieldy .advisor-panel{max-width:920px}
+#tab-calendar .crop-calendar{max-width:1200px}
+#tab-calendar #sms-panel{max-width:1200px}
+.home-hero{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:3px 0 21px;padding:24px 28px;border:1px solid #d6e6d5;border-radius:19px;background:linear-gradient(115deg,#edf8eb 0%,#fffef8 72%);position:relative;overflow:hidden}
+.home-hero:after{content:"🌱";font-size:88px;position:absolute;right:24%;bottom:-23px;opacity:.14;pointer-events:none}
+.home-hero h1{font-size:clamp(25px,3vw,35px);color:#204b35;margin:4px 0 9px;letter-spacing:-1.1px}
+.home-hero p{font-size:12px;color:#59715d;margin:3px 0}
+.home-hero small{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:800;color:#367a50}
+.home-hero-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;z-index:1}
+.home-hero .primary-btn,.home-hero .secondary-btn{white-space:nowrap}
+.home-alert-link{display:flex;align-items:center;gap:15px;text-align:left;width:100%;border:1px solid #e1e7e0;border-left:5px solid #b8b9a8;border-radius:13px;background:#fff;padding:18px 20px;min-height:100px;margin-bottom:18px;color:var(--ink);box-shadow:var(--shadow)}
+.home-alert-link:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(25,58,35,.075)}
+.home-alert-link.home-alert-danger{background:#fff7f3;border-color:#f0d4ce;border-left-color:#c84739}
+.home-alert-link.home-alert-watch{background:#fffaec;border-color:#f2dfb8;border-left-color:#d79931}
+.home-alert-link.home-alert-clear{background:#f6faf6;border-color:#dae8dd;border-left-color:#4d9a65}
+.home-alert-link.home-alert-unknown{background:#fffdf7;border-color:#e8e4d7;border-left-color:#9ba494}
+.home-alert-icon{width:42px;height:42px;border-radius:13px;background:#f4f6ed;display:grid;place-items:center;font-size:22px;flex:0 0 42px}
+.home-alert-danger .home-alert-icon{background:#fde4db}
+.home-alert-watch .home-alert-icon{background:#fff0cb}
+.home-alert-clear .home-alert-icon{background:#e3f4e8}
+.home-alert-copy{display:flex;flex-direction:column;align-items:flex-start;min-width:0;flex:1;gap:4px}
+.home-alert-eyebrow{font-size:9px;font-weight:850;letter-spacing:1.25px;color:#76917e}
+.home-alert-title{font-size:16px;letter-spacing:-.3px;color:#294d38}
+.home-alert-detail{font-size:12px;line-height:1.5;color:#66766b}
+.home-alert-cta{font-size:11px;font-weight:800;color:#296d49;white-space:nowrap}
+.home-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:17px;margin-bottom:17px}
+.home-grid-secondary{grid-template-columns:1fr 1fr}
+.home-panel{min-width:0;border:1px solid #e3eae2;border-radius:16px;box-shadow:var(--shadow);padding:22px;background:#fff}
+.home-card-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:19px}
+.home-card-heading h2{font-size:18px;letter-spacing:-.45px}
+.home-card-heading p{font-size:11px;margin-top:5px;color:#879488}
+.home-text-link{border:0;background:none;color:#25744f;font-size:11px;font-weight:800;cursor:pointer;padding:6px 0;text-align:left}
+.home-text-link:hover{text-decoration:underline;text-underline-offset:3px}
+.home-weather-now{display:flex;align-items:center;gap:17px;border-radius:12px;background:#f5f9f1;padding:17px 18px;margin-bottom:10px}
+.home-weather-now .home-temperature{font-size:41px;font-weight:750;letter-spacing:-2px;color:#28513a;font-variant-numeric:tabular-nums;line-height:1.15}
+.home-weather-now .home-condition{font-size:13px;font-weight:750;color:#3b6447;margin-bottom:5px}
+.home-weather-now .home-weather-meta{font-size:11px;color:#79907c;line-height:1.6}
+.home-weather-source{font-size:10px;color:#8c9a8e;margin:12px 0 0}
+.home-weather-day{display:grid;grid-template-columns:70px minmax(0,1fr) 86px 49px;gap:8px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #edf1ec;padding:11px 3px;color:#4a6151;font-size:12px}
+.home-weather-day:last-child{border-bottom:0}
+.home-weather-day:hover{background:#f7faf7}
+.home-weather-day strong{font-size:11px;font-weight:600;color:#5d7564;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.home-weather-day small{text-align:right;color:#6f90ac;font-size:11px}
+.home-crop-item{width:100%;display:flex;gap:12px;align-items:center;background:#fff;text-align:left;border:1px solid #eff2eb;border-radius:10px;margin-bottom:9px;padding:11px 12px;color:#304c38;transition:background .12s}
+.home-crop-item:hover{border-color:#cbded0;background:#f6faf6}
+.home-crop-emoji{flex:0 0 43px;width:43px;height:43px;border-radius:11px;background:#f3f8ed;display:grid;place-items:center;font-size:24px}
+.home-crop-copy{flex:1;min-width:0}
+.home-crop-copy strong,.home-task-item strong{display:block;font-size:13px;line-height:1.4;color:#315340}
+.home-crop-copy small,.home-task-item small{display:block;font-size:11px;color:#829385;line-height:1.5;margin-top:3px}
+.home-crop-area{font-size:11px;font-weight:800;color:#437557;white-space:nowrap}
+.home-crop-area span{font-size:17px;color:#8ca997;margin-left:3px}
+.home-more{font-size:11px;color:#739080;margin-top:8px}
+.home-task-item{display:grid;grid-template-columns:65px minmax(0,1fr) 8px;gap:13px;align-items:center;border:0;border-bottom:1px solid #edf1eb;background:#fff;width:100%;padding:13px 2px;text-align:left;color:#829389}
+.home-task-item:hover{background:#f7faf7}
+.home-task-date{display:inline-block;font-size:11px;font-weight:800;color:#427e53;border-radius:7px;background:#eff7ee;padding:9px 6px;text-align:center}
+.home-empty{border:1px dashed #cdddcf;background:#fafcf8;padding:22px;border-radius:11px;color:#718573;font-size:12px}
+.home-empty p{margin-bottom:8px}
+.home-muted{font-size:12px;color:#819384;padding:15px 0}
+.home-sensor-surface{display:flex;gap:14px;align-items:center;background:#f8faf6;padding:16px;border-radius:11px}
+.home-sensor-icon{width:49px;height:49px;border-radius:13px;display:grid;place-items:center;background:#edf4ee;font-size:26px}
+.home-sensor-value{font-size:22px;font-weight:800;color:#355844;margin:2px 0}
+.home-status-label{font-size:11px;color:#887c5d;font-weight:750}
+.home-status-label.good{color:#238558}
+.home-sensor-detail{color:#7d8d80;font-size:11px;line-height:1.55}
+.home-fieldy-strip{display:flex;align-items:center;gap:17px;padding:17px 22px;background:#eff7ed;border-radius:14px;border:1px solid #d9e9d8;margin-top:2px}
+.home-fieldy-strip img{height:63px;width:51px;object-fit:contain}
+.home-fieldy-strip div{flex:1}
+.home-fieldy-strip strong{display:block;color:#2b603e;font-size:14px}
+.home-fieldy-strip p{font-size:11px;color:#628168;margin-top:4px}
+.home-footer-note{font-size:10px;color:#96a397;margin:15px 2px 0;line-height:1.6}
+.home-guide-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:15px;color:#2c593c;font-weight:800}
+.home-guide-count{color:#7e937f;font-weight:500;font-size:11px}
+.home-guide-disclaimer{font-size:11px;color:#698271;background:#f6faf6;border-radius:9px;padding:11px 13px;margin:16px 0}
+.home-reference-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.home-reference-card{border-radius:11px;border:1px solid #e5eee3;background:#fcfdf9;padding:14px}
+.home-reference-title{display:flex;align-items:center;gap:9px;font-size:14px}
+.home-reference-title span{font-size:23px}
+.home-reference-card small{display:block;color:#6c8c70;margin:7px 0;font-size:11px}
+.home-reference-card p{font-size:12px;line-height:1.6;color:#536c57;margin-top:8px}
+.home-reference-card .home-reference-caution{color:#806f4b}
+#tab-crops #crop-reference-guide{max-width:1050px}
+@media(max-width:1150px){
+ .home-hero:after{right:14%}
+ .home-weather-day{grid-template-columns:54px 1fr 80px 42px}
+}
+@media(max-width:840px){
+ .home-grid{grid-template-columns:1fr}
+ .home-hero:after{display:none}
+ .home-reference-grid{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+ .home-hero{padding:20px;align-items:flex-start;flex-direction:column}
+ .home-hero-actions{width:100%}
+ .home-alert-link{align-items:flex-start;flex-wrap:wrap;padding:15px}
+ .home-alert-copy{flex-basis:calc(100% - 60px)}
+ .home-alert-cta{margin-left:57px}
+ .home-panel{padding:17px}
+ .home-weather-day{grid-template-columns:55px minmax(0,1fr) 68px 40px;font-size:11px}
+ .home-weather-day strong{font-size:10px}
+ .home-crop-area{max-width:90px;white-space:normal;text-align:right}
+ .home-fieldy-strip{flex-wrap:wrap}
+ .home-fieldy-strip .primary-btn{width:100%}
+}
