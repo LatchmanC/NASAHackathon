@@ -87,10 +87,3 @@
 .fieldy-message .fieldy-section>b{display:block;margin-bottom:6px;font-size:11px;color:#3f6550}
 .fieldy-message .fieldy-section li{margin:4px 0;color:#627e6c;font-size:11px}
 @media(max-width:660px){.advisor-stage{grid-template-columns:minmax(0,1fr)}.advisor-character{display:none}.fieldy-message{max-width:100%}.fieldy-chat-history{max-height:390px}}
-
-/* Per-account TigerData Farm Calendar synchronization status. */
-.calendar-cloud-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.calendar-cloud-tools .secondary-btn{padding:7px 10px;font-size:11px}
-.calendar-sync-status{color:#607967;font-size:11px;line-height:1.5;margin:-10px 0 19px}
-.data-badge.warn{background:#fff3e8;border-color:#f2d8b3;color:#94551e}
-@media(max-width:650px){.calendar-cloud-tools{justify-content:flex-start}.calendar-heading{flex-wrap:wrap}}
