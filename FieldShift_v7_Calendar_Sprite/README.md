@@ -1,3 +1,57 @@
+## FieldShift v14 — Direct Gemini answers and ESP32 cloud ingestion
+
+**Production:** https://cropaganda.garden
+
+### Gemini
+The Fieldy AI now answers the **question you type**, using your crop plan, selected location,
+upcoming calendar tasks, server-fetched NASA POWER historical weather (or clearly labeled
+browser cache when unavailable), live Open-Meteo forecast, official weather alerts, and
+real ESP32 readings available for your Auth0 account. Its answer includes assumptions and
+source limitations, and estimates are labeled rather than fabricated. 
+All email-verified Auth0 users can use the real model. Public `test/test` still receives
+**sample advice only**, not a paid API request. The key stays server-side.
+
+### ESP32 — First-time setup
+1. Sign in at https://cropaganda.garden with a **verified Auth0 account** (not test/test).
+2. Open **Live Sensor Data → Pair your ESP32**.
+3. Choose a device ID (e.g. `esp32-01`), press **Generate pairing token** and **Copy token**.
+   Keep this token private. It authorizes *writes only* to your private sensor snapshot.
+   Device tokens expire after **180 days**. Generate another after expiration.
+4. Open the `esp32/FieldShift_ESP32.ino` sketch from the download package in Arduino IDE.
+   Set your Wi-Fi SSID/password, device ID and token. Never commit your Wi-Fi password
+   or token to GitHub. Arduino ESP32 Core and WiFi/HTTPClient are required.
+5. Start with `VALIDATION_ONLY=true`: it sends sample payloads to
+   `POST https://cropaganda.garden/api/device/validate` and **does not store readings**.
+   Look for HTTP 200 in Serial Monitor.
+6. Wire and calibrate actual sensors, set their corresponding GPIOs, then switch
+   `VALIDATION_ONLY=false` to send authenticated readings to
+   `POST https://cropaganda.garden/api/device/ingest` over TLS.
+7. Refresh Live Sensor Data. The page polls every 30 seconds; private Blob may cache
+   updates for up to about a minute. If there is no device upload, sensors display Offline.
+
+**JSON data schema** (send only fields actually measured):
+
+```json
+{"device_id":"esp32-01","temperature_c":24.1,"humidity_pct":58,"pressure_hpa":1012.5,"soil_moisture_pct":42,"ph":6.5,"light_pct":75,"rain_wetness_pct":12,"gas_index":21,"altitude_m":16}
+```
+
+The paired device sends the token in `Authorization: Bearer <private-token>` and
+`Content-Type: application/json`. Unauthorized uploads get 401 and invalid measurements
+422. Uploads faster than the backend's minimum interval (default 300 seconds) get
+429 with a `Retry-After` response header.
+
+**Storage limitations:** The private Vercel Blob store is persistent and account-scoped,
+but is a prototype snapshot (last 72 readings), not a full time-series DB.
+Vercel Hobby includes about 2,000 advanced operations/month; a device sending every
+five minutes around the clock will exceed that limit. Use a slower interval for
+unattended usage, or switch to TigerData/TimescaleDB for frequent real-time data.
+The private store's credentials stay in Vercel environment variables.
+
+ESP32 sensor hardware models and pin wiring were not supplied, so the sketch contains
+optional *unconnected* ADC examples. Never treat unwired floating ADC values as valid
+measurements. The built-in validation mode verifies connectivity without forging field data.
+
+---
 ## Gemini access — verified Auth0 users (2026-11-14)
 
 Every registered user who has **verified their email** and signed in using Auth0 can request real Gemini advice. The separate public `test / test` sample login remains restricted to fixed sample advice. There is no required `AUTH0_ALLOWED_EMAILS` entry for Gemini. Because there is no durable quota backend yet, monitor paid Gemini usage and set account/project spending safeguards before broad advertising.

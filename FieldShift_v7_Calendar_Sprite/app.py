@@ -15,6 +15,9 @@ from fieldshift_core import http_json, valid_lat_lon
 from intelligence import fetch_nasa_daily, demo_nasa_daily, official_alerts, demo_alerts
 from location_catalog import catalog, resolve_preset
 from gemini_client import generate_gemini_reply, DEFAULT_GEMINI_MODEL
+from sensor_store import configured as sensor_configured, read_snapshot, age_seconds, daily_averages
+from device_api import install_device_routes
+from advisor_core import answer_question
 
 ROOT=Path(__file__).resolve().parent
 load_dotenv(ROOT/'.env',override=False)
@@ -36,7 +39,7 @@ DEFAULT_PLAN={'total_area':5,'area_unit':'acres','notes':'','crops':[{'name':'To
 def home(): return FileResponse(ROOT/'public'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(): return {'ok':True,'service':'FieldShift Vercel stateless preview','sensor_connected':False}
+def health(): return {'ok':True,'service':'FieldShift','sensor_storage_configured':sensor_configured()}
 
 @app.get('/api/overview')
 def overview(request:Request):
@@ -44,7 +47,18 @@ def overview(request:Request):
         now=datetime.now(timezone.utc).isoformat()
         latest={'recorded_at':now,'device_id':'TEST-ESP32-NOT-CONNECTED','temperature_c':24.7,'humidity_pct':53.1,'pressure_hpa':1013.7,'altitude_m':-3.8,'rain_wetness_pct':5.1,'light_pct':62.7,'gas_index':22.2,'soil_moisture_pct':47.4}
         return {'state':'demo','latest':latest,'pi_connected':False,'cloud_connected':False,'last_reading_at':now,'last_cloud_sync':None,'pending_cloud':None,'cloud_record_count':0,'location':SAMPLE_LOCATION,'flags':[], 'sensor_source':'SYNTHETIC_SAMPLE'}
-    return {'state':'offline','latest':None,'pi_connected':False,'cloud_connected':False,'last_reading_at':None,'last_cloud_sync':None,'pending_cloud':None,'cloud_record_count':None,'location':DEFAULT_LOCATION,'flags':[], 'sensor_source':'NONE'}
+    user=request.session.get('user',{}) if 'session' in request.scope else {}
+    snap=read_snapshot(user['sub']) if user.get('mode')=='auth0' else None
+    latest=snap.get('latest') if snap else None
+    age=age_seconds(latest)
+    fresh=age is not None and age<15*60
+    return {'state':'live' if fresh else 'stale' if latest else 'offline',
+            'latest':latest,'pi_connected':bool(fresh),'cloud_connected':sensor_configured(),
+            'last_reading_at':latest.get('recorded_at') if latest else None,
+            'last_cloud_sync':snap.get('last_updated') if snap else None,'pending_cloud':None,
+            'cloud_record_count':len(snap.get('readings',[])) if snap else 0,
+            'location':DEFAULT_LOCATION,'flags':[],
+            'sensor_source':'ESP32_PRIVATE_BLOB' if latest else 'NONE'}
 
 @app.get('/api/recorded')
 def recorded(request:Request,limit:int=100,offset:int=0):
@@ -52,14 +66,23 @@ def recorded(request:Request,limit:int=100,offset:int=0):
         now=datetime.now(timezone.utc)
         rows=[{'recorded_at':(now-timedelta(hours=i)).isoformat(),'device_id':'TEST-ESP32-NOT-CONNECTED','temperature_c':round(23.7+i*.2,1),'humidity_pct':round(52+i*.6,1),'pressure_hpa':1013.7,'soil_moisture_pct':round(47+i*.7,1),'rain_wetness_pct':5.1,'light_pct':62.7,'gas_index':22.2,'altitude_m':-3.8} for i in range(12)]
         return {'readings':rows[offset:offset+min(limit,100)],'total':len(rows),'storage':'SYNTHETIC SAMPLE ONLY'}
-    return {'readings':[],'total':0,'storage':'Awaiting TigerData integration'}
+    user=request.session.get('user',{}) if 'session' in request.scope else {}
+    snap=read_snapshot(user['sub']) if user.get('mode')=='auth0' else None
+    rows=snap.get('readings',[]) if snap else []
+    offset=max(0,offset);limit=max(1,min(100,limit))
+    return {'readings':rows[offset:offset+limit],'total':len(rows),
+            'storage':'Private Blob bounded history' if sensor_configured() else 'Cloud storage unavailable'}
 
 @app.get('/api/charts')
 def charts(request:Request):
     if is_sample(request):
         date=datetime.now(timezone.utc).date().isoformat()
         return {'local_days':{date:{'temperature_c':24.7,'humidity_pct':53.1,'pressure_hpa':1013.7,'soil_moisture_pct':47.4}},'nasa':None,'record_count':12,'source':'SYNTHETIC SAMPLE ONLY'}
-    return {'local_days':{},'nasa':None,'record_count':0,'source':'No ESP32 connection yet'}
+    user=request.session.get('user',{}) if 'session' in request.scope else {}
+    snap=read_snapshot(user['sub']) if user.get('mode')=='auth0' else None
+    rows=snap.get('readings',[]) if snap else []
+    return {'local_days':daily_averages(rows),'nasa':None,'record_count':len(rows),
+            'source':'ESP32 measurements' if rows else 'No authenticated device readings'}
 
 @app.get('/api/locations/catalog')
 def locations(): return {'countries':catalog(),'note':'Preset city centers; precise locations require GPS coordinates.'}
@@ -179,7 +202,7 @@ def gemini_status(request:Request):
 
 class AdviceRequest(BaseModel):
     plan:dict
-    question:str=Field(default='',max_length=500)
+    question:str=Field(default='',max_length=2500)
     model:str=DEFAULT_GEMINI_MODEL
     location:dict=Field(default_factory=dict)
     nasa_excerpt:list[dict]=Field(default_factory=list)
@@ -188,58 +211,10 @@ class AdviceRequest(BaseModel):
 
 @app.post('/api/plan/advice')
 def farming_advice(req:AdviceRequest,request:Request):
-    user=request.session.get('user',{}) if 'session' in request.scope else {}
-    if user.get('mode')=='sample':
-        p=validate_plan(req.plan)
-        crops=[{'name':x['name'],'next_step':'Check crop condition and add a planting date or variety for a better timeline.','timing':'Planning example'} for x in p['crops']]
-        return {'advice_structured':{'headline':'Review your crop plans before your next field visit.',
-           'actions':[{'title':'Check drainage','detail':'Inspect low areas before watering.'},{'title':'Add planting dates','detail':'Enter dates and varieties to improve the growing timeline.'}],
-           'crops':crops,'weather_watch':'Download a live forecast in the NASA tab before making decisions.',
-           'data_note':'Demo sensors are fictional; no Gemini call was made.'},
-           'created_at':datetime.now(timezone.utc).isoformat(),'model':'sample-advice','data_mode':'synthetic','provider':'demo'}
-    # Signed, verified Auth0 accounts use the real model. Public sample
-    # users are handled above and anonymous users are blocked by middleware.
-    if not gemini_approved(user):
-        raise HTTPException(403,'Sign in with a verified Auth0 account to use Gemini.')
-    key=os.environ.get('GEMINI_API_KEY','').strip()
-    if not key:raise HTTPException(503,'Gemini has not been configured on this deployment.')
-    if req.model!=DEFAULT_GEMINI_MODEL:raise HTTPException(400,'Unsupported model')
-    try:p=validate_plan(req.plan);lat,lon=valid_lat_lon(req.location.get('latitude'),req.location.get('longitude'))
-    except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
-    # Weather is fetched server-side; previous UI-provided NASA records are unverified context.
-    try:f=forecast(lat,lon)
-    except Exception:f=[]
-    nasa_rows=[]
-    for row in req.nasa_excerpt[-12:]:
-        if not isinstance(row,dict):continue
-        nasa_rows.append({k:row.get(k) for k in ('date','temperature_c','temperature_max_c','temperature_min_c','precipitation_mm','humidity_pct')})
-    context={'location':{'latitude':lat,'longitude':lon,'label':str(req.location.get('label',''))[:100]},'farm':p,
-       'current_sensors':'NOT CONNECTED: No ESP32 sensor measurements are available',
-       'nasa_recent':'USER-BROWSER CACHED REGIONAL OBSERVATIONS (unverified; not current weather)' if nasa_rows else 'NOT LOADED',
-       'nasa_daily_history':nasa_rows,'weather_forecast_source':'Open-Meteo (if available)','forecast':f[:5],
-       'tasks':req.upcoming_calendar_tasks[:15], 'question':req.question}
-    prompt=('You are Fieldy, a friendly, precise agricultural assistant. Return ONLY a JSON object, no markdown, no headers or disclaimers. '
-      'Keys: headline (short friendly sentence), actions (array of 2–4 objects with title and detail), crops (array of objects with name, next_step, timing), weather_watch (one sentence), data_note (one sentence). '
-      'Use simple everyday language, practical next actions, max 25 words per field, no more than 4 actions. '
-      'Include every crop, no fabricated harvest dates, soil tests, growth percentages, yield or official weather warnings. '
-      'If planting dates/cultivars are missing, say what information is needed instead of inventing a date. '
-      'NASA POWER is historical regional context, not a forecast; current sensor readings are unavailable. '
-      'Explain uncertainties once, only in data_note. Be concise, warm and realistic. '
-      'Never claim imminent severe weather unless verified by official sources. Context follows: '+json.dumps(context,ensure_ascii=False,default=str))
-    try:
-        raw=generate_gemini_reply(key,prompt,model=DEFAULT_GEMINI_MODEL,json_mode=True)
-        cleaned=raw.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip()
-        obj=json.loads(cleaned)
-        if not isinstance(obj,dict):raise ValueError('Expected structured advice')
-        def short(v,n=220):return str(v or '').strip()[:n]
-        result={'headline':short(obj.get('headline'),130),
-          'actions':[{'title':short(x.get('title'),90),'detail':short(x.get('detail'),210)} for x in (obj.get('actions') or [])[:4] if isinstance(x,dict)],
-          'crops':[{'name':short(x.get('name'),70),'next_step':short(x.get('next_step'),180),'timing':short(x.get('timing'),140)} for x in (obj.get('crops') or [])[:30] if isinstance(x,dict)],
-          'weather_watch':short(obj.get('weather_watch'),240),'data_note':short(obj.get('data_note'),250)}
-        if not result['headline']:raise ValueError('Missing headline')
-        return {'advice_structured':result,'created_at':datetime.now(timezone.utc).isoformat(),'model':DEFAULT_GEMINI_MODEL,'data_mode':'live' if f else 'unavailable'}
-    except Exception:raise HTTPException(502,'Gemini could not create concise advice. Please try again or check the model and backend logs.')
+    return answer_question(req,request,validate_plan,forecast,official_alerts,
+                           fetch_nasa_daily,generate_gemini_reply,DEFAULT_GEMINI_MODEL,valid_lat_lon)
 
-# Public website has no device upload endpoint: ESP32 uploads and TigerData require user/device auth and durable storage.
+# ESP32 uses authenticated, account-isolated private Blob uploads. TigerData is a future upgrade.
 from auth0_integration import install_auth
 AUTH_SETTINGS=install_auth(app)
+install_device_routes(app)

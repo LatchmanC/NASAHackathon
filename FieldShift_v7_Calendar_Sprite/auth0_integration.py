@@ -57,7 +57,7 @@ def install_auth(app: FastAPI):
         path=request.url.path
         # The Vercel public/ folder is served separately. ALL private APIs must
         # independently validate the signed session cookie.
-        public=path.startswith('/static/') or path in ('/','/api/health','/api/auth/me','/auth/login','/auth/callback','/auth/logout','/auth/demo','/auth/signup')
+        public=path.startswith('/static/') or path in ('/','/api/health','/api/auth/me','/auth/login','/auth/callback','/auth/logout','/auth/demo','/auth/signup','/api/device/ingest','/api/device/validate')
         if not conf['enabled'] and not conf['sample_enabled']:
             return await call_next(request)
         user=request.session.get('user')
@@ -65,7 +65,7 @@ def install_auth(app: FastAPI):
             if path.startswith('/api/'):
                 return JSONResponse({'detail':'Please sign in to FieldShift.'},status_code=401)
             return RedirectResponse('/',status_code=303)
-        if path.startswith('/api/') and request.method in ('POST','PUT','PATCH','DELETE'):
+        if path.startswith('/api/') and path not in ('/api/device/ingest','/api/device/validate') and request.method in ('POST','PUT','PATCH','DELETE'):
             if request.headers.get('X-FieldShift-Request')!='1':
                 return JSONResponse({'detail':'Request protection header missing'},status_code=403)
             origin=request.headers.get('origin')

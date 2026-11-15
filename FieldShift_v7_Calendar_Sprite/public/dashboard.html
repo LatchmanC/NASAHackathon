@@ -51,7 +51,7 @@
               <div class="speech-bubble" id="advice-output" role="status" aria-live="polite"><strong>Hi, farmer! 🌱</strong><p>Tell me about your crops and I'll help you plan your next steps using available field and NASA data.</p></div>
             </div>
             <label for="farm-question">What would you like Fieldy to help with?</label>
-            <textarea id="farm-question" rows="3">What should I do next for my crops, and what weather should I watch this week?</textarea>
+            <textarea id="farm-question" rows="3" placeholder="Ask anything specific: yields, crop layout, watering, pH, planting dates, or weather..."></textarea>
             <button class="primary-btn fullwidth" id="ask-gemini">✦ Ask Fieldy for advice</button>
             <div class="advisor-meta" id="advisor-key-status">Checking Gemini configuration…</div>
             <p class="footnote">Fieldy uses Gemini 3.5 Flash-Lite on the Python backend. Advice is conditional, not a verified yield or severe-weather forecast.</p>
@@ -81,12 +81,17 @@
         </section>
       </section>
       <section class="panel-tab hidden" id="tab-live">
-        <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Live ESP32 sensor data will appear here after we connect the device and TigerData.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
+        <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Pair an ESP32 below to upload real sensor readings. Each signed-in farm gets its own private cloud records.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
         <div class="sync-note" id="sync-message">Checking sensor station and cloud connection…</div>
         <div class="metric-grid" id="live-metrics"><div class="empty-card">Loading readings…</div></div>
-        <div class="card section-gap"><div class="card-heading"><div><h2>Data storage</h2><p class="muted">Sensor upload and TigerData are not yet connected in this hosted preview.</p></div><span class="data-badge">Cloud history</span></div>
+        <div class="card section-gap" id="device-pair-panel"><div class="card-heading"><div><h2>🔗 Pair your ESP32</h2><p class="muted">Generate a private upload token for your Auth0 account. Keep it out of source control.</p></div><span class="data-badge">Private device</span></div>
+          <div class="columns2"><div><label for="device-id">Device ID</label><input id="device-id" value="esp32-01" maxlength="40" autocomplete="off"></div><div><label>&nbsp;</label><button id="pair-device" type="button" class="primary-btn">Generate pairing token</button></div></div>
+          <div id="device-pair-result" class="footnote">Pairing is required once per ESP32. Use the Arduino firmware in the downloadable project.</div>
+          <p class="footnote">This is low-frequency private Blob storage for initial testing. We'll move to TigerData for continuous sensor feeds. Only actual uploaded readings are presented as ESP32 measurements.</p>
+        </div>
+        <div class="card section-gap"><div class="card-heading"><div><h2>Data storage</h2><p class="muted">ESP32 readings are stored in private Blob snapshots. TigerData will be added for higher-frequency history.</p></div><span class="data-badge">Cloud history</span></div>
           <div class="stats-row compact-stats"><div class="stat-card"><span>Storage</span><strong id="storage-type">Checking</strong></div><div class="stat-card"><span>Cloud records</span><strong id="stored-count">—</strong></div><div class="stat-card"><span>Last cloud sync</span><strong id="last-cloud-sync">—</strong></div></div>
-          <details id="history-details"><summary>View recently synced readings</summary><div class="table-scroll"><table id="history-table"><thead><tr><th>Recorded UTC</th><th>Temp °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Soil %</th><th>Rain wetness %</th><th>Light %</th><th>Gas index</th><th>Altitude m</th></tr></thead><tbody><tr><td colspan="9">Loading cloud readings…</td></tr></tbody></table></div><button class="secondary-btn" id="export-csv">Export displayed records as CSV</button><p class="footnote" id="history-note"></p></details>
+          <details id="history-details"><summary>View recently synced readings</summary><div class="table-scroll"><table id="history-table"><thead><tr><th>Recorded UTC</th><th>Temp °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Soil %</th><th>Rain wetness %</th><th>Light %</th><th>Gas index</th><th>Altitude m</th><th>pH</th></tr></thead><tbody><tr><td colspan="10">Loading cloud readings…</td></tr></tbody></table></div><button class="secondary-btn" id="export-csv">Export displayed records as CSV</button><p class="footnote" id="history-note"></p></details>
         </div>
       </section>
       <section class="panel-tab hidden" id="tab-nasa">

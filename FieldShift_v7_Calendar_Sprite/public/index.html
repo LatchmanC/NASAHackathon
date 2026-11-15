@@ -19,6 +19,6 @@ button,.action{display:block;width:100%;text-align:center;border:0;background:va
 <label for="p">Demo password</label><input id="p" name="password" type="password" placeholder="Enter demo password" autocomplete="off" required>
 <p id="error" class="error" role="alert"></p><button type="submit">Enter Sample Farm</button></form>
 <div class="warn"><strong>Public sample account:</strong> Username <code>test</code> / password <code>test</code>. This account uses fictional records, does not authenticate with Auth0, and cannot spend Gemini credits or access private farm data.</div>
-<p class="fine">Real farmers sign in through Auth0. ESP32 and TigerData are not connected yet.</p>
+<p class="fine">Real farmers sign in through Auth0. ESP32 pairing is available after sign-in; TigerData will be connected later.</p>
 </div><script>const err=new URLSearchParams(location.search).get('error');if(err==='invalid')document.getElementById('error').textContent='Invalid demo login. Use test / test.';if(err==='signup_unavailable')document.getElementById('error').textContent='Account registration is not currently enabled.';fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j.authenticated)location.replace('/dashboard.html')}).catch(()=>{});</script>
 </body></html>

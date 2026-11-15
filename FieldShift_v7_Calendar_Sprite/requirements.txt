@@ -7,3 +7,5 @@ python-dotenv>=1.0
 certifi>=2025.1
 truststore>=0.10
 google-genai>=1.0
+
+vercel-blob>=0.5,<0.6

@@ -49,14 +49,14 @@ class HostedPreviewTests(unittest.TestCase):
             generate.assert_not_called()
 
     def test_model_parser_with_fake_provider(self):
-        fake={'headline':'Check the forecast before planting','actions':[{'title':'Inspect soil','detail':'Check drainage before starting.'}], 'crops':[{'name':'Corn','next_step':'Pick a suitable variety','timing':'Date not known'}], 'weather_watch':'Rain forecast is unavailable.','data_note':'No live sensors connected.'}
+        fake={'answer':'Estimated watering interval 3–4 days, depending on moisture and rain.','assumptions':['Drainage typical'],'source_notes':['Uses weather forecast.']}
         body={'plan':{'total_area':5,'area_unit':'acres','crops':[{'name':'Corn','area':2}]},'location':{'latitude':40,'longitude':-73},'question':'Help with corn'}
         # Mock only the provider functions. Real authentication enforcement is tested in v8.
-        with patch.dict(os.environ,{'AUTH0_ENABLED':'1','GEMINI_API_KEY':'test-not-real'}),patch.object(server,'forecast',return_value=[]),patch.object(server,'generate_gemini_reply',return_value=json.dumps(fake)) as generate:
+        with patch.dict(os.environ,{'AUTH0_ENABLED':'1','GEMINI_API_KEY':'test-not-real'}),patch.object(server,'read_snapshot',return_value=None),patch.object(server,'forecast',return_value=[]),patch.object(server,'official_alerts',return_value={'status':'unavailable'}),patch.object(server,'fetch_nasa_daily',return_value={'period':'test','rows':[]}),patch.object(server,'generate_gemini_reply',return_value=json.dumps(fake)) as generate:
             request=SimpleNamespace(scope={'session':{}},session={'user':{'mode':'auth0','sub':'auth0|new-user','email':'newuser@example.com'}})
             result=server.farming_advice(server.AdviceRequest(**body),request)
-            self.assertEqual(result['advice_structured']['headline'],fake['headline'])
-            self.assertEqual(result['advice_structured']['crops'][0]['name'],'Corn')
+            self.assertEqual(result['advice_structured']['answer'],fake['answer'])
+            self.assertEqual(result['provider'],'gemini')
             self.assertEqual(generate.call_args.kwargs.get('json_mode'),True)
 
 

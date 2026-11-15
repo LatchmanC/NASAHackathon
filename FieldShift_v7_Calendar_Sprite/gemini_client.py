@@ -38,7 +38,7 @@ def generate_gemini_reply(api_key: str, prompt: str, model: str | None = None, *
         answer = client.models.generate_content(
             model=model_name,
             contents=prompt,
-            config=types.GenerateContentConfig(max_output_tokens=1600, **({'response_mime_type':'application/json'} if json_mode else {})),
+            config=types.GenerateContentConfig(max_output_tokens=3500, **({'response_mime_type':'application/json'} if json_mode else {})),
         )
         text = (answer.text or "").strip()
         if not text:
