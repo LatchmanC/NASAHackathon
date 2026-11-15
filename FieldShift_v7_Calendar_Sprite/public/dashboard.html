@@ -55,9 +55,26 @@
             <textarea id="farm-question" rows="3" placeholder="Ask anything specific: yields, crop layout, watering, pH, planting dates, or weather..."></textarea>
             <button class="primary-btn fullwidth" id="ask-gemini">✦ Ask Fieldy for advice</button>
             <div class="advisor-meta" id="advisor-key-status">Checking Gemini configuration…</div>
+            <div id="fieldy-calendar-confirmation" class="card hidden" style="padding:14px;margin:12px 0;border-color:#b8d8c1">
+              <strong id="fieldy-calendar-proposal">Calendar task proposal</strong>
+              <p class="muted" style="margin:8px 0">Should I add this task to both your Farm Calendar and Google Calendar?</p>
+              <div class="heading-actions">
+                <button class="primary-btn" id="fieldy-calendar-yes" type="button">Yes, add to both calendars</button>
+                <button class="secondary-btn" id="fieldy-calendar-no" type="button">No, thanks</button>
+              </div>
+            </div>
             <p class="footnote">Fieldy uses Gemini 3.5 Flash-Lite on the Python backend. Advice is conditional, not a verified yield or severe-weather forecast.</p>
           </section></div>
         <section class="card crop-calendar section-gap" aria-label="Farm calendar">
+          <div class="card" style="padding:15px;margin-bottom:18px">
+            <div class="card-heading"><div><h3>Google Calendar</h3><p class="muted">Connect your Google account to sync tasks you explicitly approve in Fieldy.</p></div>
+              <span class="data-badge" id="google-calendar-badge">Checking…</span></div>
+            <div class="heading-actions">
+              <button type="button" class="primary-btn" id="connect-google-calendar">Connect Google Calendar</button>
+              <button type="button" class="secondary-btn hidden" id="disconnect-google-calendar">Disconnect Google Calendar</button>
+            </div>
+            <p class="footnote" id="google-calendar-status">Checking Google Calendar connection…</p>
+          </div>
           <div class="card-heading calendar-heading"><div><h2>Farm calendar</h2><p class="muted">Track planting, watering, inspections, and harvest tasks. Planting dates from your crop list appear automatically.</p></div><span class="data-badge">Saved locally</span></div>
           <div class="calendar-layout">
             <div class="calendar-main">
@@ -140,11 +157,11 @@
         <div class="heading-row"><div><div class="eyebrow">TIGERDATA + NASA POWER</div><h1>History</h1><p class="subtitle">Select a calendar day and saved 10-minute sensor snapshot, then view the recorded ESP32 data beside NASA POWER observations for that same day.</p></div><span class="data-badge">Saved snapshots · UTC</span></div>
         <div class="card section-gap">
           <div class="card-heading"><div><h2>Browse saved readings</h2><p class="muted">Each entry represents the first real reading received during a 10-minute UTC interval. Times below are UTC.</p></div></div>
-          <div class="columns2">
-            <div><label for="archive-month">Month and year</label><input id="archive-month" type="month"></div>
-            <div><label for="archive-date">Date</label><input id="archive-date" type="date"></div>
-          </div>
-          <p id="archive-available-days" class="footnote">Choose a month to see which dates have recorded snapshots.</p>
+          <label for="archive-date">Saved date (UTC)</label>
+          <select id="archive-date" style="display:block;width:100%;min-height:54px;padding:12px;font-size:16px;border:1px solid #dce6de;border-radius:10px;background:white;margin:9px 0 17px">
+            <option value="">Loading saved dates…</option>
+          </select>
+          <p class="footnote">Only dates with real archived ESP32 measurements are listed.</p>
           <label for="archive-snapshot">Saved timestamp</label><select id="archive-snapshot" style="width:100%"><option value="">Choose a date first</option></select>
           <div class="heading-actions section-gap">
             <button class="primary-btn" id="archive-load" type="button">Load saved snapshot</button>
