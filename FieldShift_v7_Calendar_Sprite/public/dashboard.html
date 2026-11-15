@@ -113,6 +113,10 @@
       <section class="panel-tab hidden" id="tab-crops">
         <div class="heading-row"><div><div class="eyebrow">FARM SETUP</div><h1>My Farm</h1><p class="subtitle">Manage your farm location, land allocation, and crops. For detailed USDA soil and rotation guidance, open Soil &amp; Rotation.</p></div><button type="button" class="secondary-btn" data-go="soil">🌾 Soil &amp; Rotation ›</button></div>
         <div class="sync-note" id="farm-cloud-status" role="status">Checking cloud storage for your farm…</div>
+        <div class="form-actions" id="farm-cloud-actions">
+          <button type="button" class="secondary-btn" id="farm-cloud-refresh">Reload from TigerData</button>
+          <button type="button" class="secondary-btn hidden" id="farm-import-reopen">Import earlier browser data</button>
+        </div>
         <section class="card section-gap hidden" id="farm-import-banner" aria-label="Import previously saved farm data">
           <div class="card-heading"><div><h2>Import this browser’s farm data</h2>
             <p class="muted" id="farm-import-summary">Earlier Cropaganda versions saved your data in this browser.</p>
