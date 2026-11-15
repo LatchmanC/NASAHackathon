@@ -31,8 +31,14 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_soil*.py' -v
       - name: Check Python syntax
         run: python -m compileall -q soil_rotation_api.py soil_context_api.py prism_reference.py
+      - name: Farm cloud API regression tests
+        run: python -m unittest discover -s tests -p 'test_farm_profile_api.py' -v
       - name: Check frontend JavaScript syntax
-        run: node --check public/static/soil-rotation.js
+        run: |
+          node --check public/static/soil-rotation.js
+          node --check public/static/app.js
+      - name: Check farm profile backend syntax
+        run: python -m compileall -q farm_profile_api.py
       - name: Live USDA point diagnostic (non-blocking)
         continue-on-error: true
         run: |
