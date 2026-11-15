@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import logging
 import math
+import re
+import xml.etree.ElementTree as ET
 from urllib.parse import urlencode
 
 import httpx
@@ -28,7 +30,7 @@ from prism_reference import closest_prism_reference
 def _num(value):
     try:
         value = float(value)
-        return round(value, 3) if math.isfinite(value) and value > -9000 else None
+        return round(value, 3) if math.isfinite(value) and value not in (-999, -9999, -999.0, -9999.0) and value > -9000 else None
     except (TypeError, ValueError):
         return None
 
@@ -112,6 +114,83 @@ def _usgs_water(lat, lon):
             "note": "Regional streamflow/groundwater gauge context; not soil moisture at the farm."}
 
 
+
+
+def _albers5070(lat, lon):
+    """Precise GRS80 NAD83 CONUS Albers equal-area point projection (EPSG:5070).
+    Unlike Gemini's linear lat/lon approximation, this matches the projection
+    used by the USDA CropScape 30 m point-value service.
+    """
+    a = 6378137.0
+    flattening = 1 / 298.257222101
+    e = math.sqrt(2 * flattening - flattening * flattening)
+    def m(phi):
+        return math.cos(phi) / math.sqrt(1 - e * e * math.sin(phi)**2)
+    def q(phi):
+        sin_phi = math.sin(phi)
+        return (1-e*e)*(sin_phi / (1-e*e*sin_phi*sin_phi)
+                - math.log((1-e*sin_phi)/(1+e*sin_phi))/(2*e))
+    phi1, phi2, origin_phi = map(math.radians, (29.5, 45.5, 23.0))
+    n = (m(phi1)**2-m(phi2)**2)/(q(phi2)-q(phi1))
+    C = m(phi1)**2 + n*q(phi1)
+    rho0 = a*math.sqrt(C-n*q(origin_phi))/n
+    theta = n*math.radians(lon+96)
+    rho = a*math.sqrt(C-n*q(math.radians(lat)))/n
+    return (round(rho*math.sin(theta), 2),
+            round(rho0-rho*math.cos(theta), 2))
+
+
+# A bounded subset of USDA's official Cropland Data Layer class dictionary.
+_CDL_CLASSES = {
+    0:"Background",1:"Corn",4:"Sorghum",5:"Soybeans",21:"Barley",
+    23:"Spring Wheat",24:"Winter Wheat",26:"Double Crop Winter Wheat/Soybeans",
+    27:"Rye",28:"Oats",36:"Alfalfa",37:"Other Hay",43:"Potatoes",
+    47:"Miscellaneous Vegetables and Fruits",51:"Chickpeas",54:"Tomatoes",
+    58:"Clover/Wildflowers",61:"Fallow/Idle Cropland",
+    62:"Pasture/Grass",111:"Open Water",121:"Developed/Open Space",
+    122:"Developed/Low Intensity",123:"Developed/Medium Intensity",
+    124:"Developed/High Intensity",141:"Deciduous Forest",
+    142:"Evergreen Forest",143:"Mixed Forest",176:"Grassland/Pasture",
+    190:"Woody Wetlands",195:"Herbaceous Wetlands"
+}
+
+
+def _usda_cdl(lat, lon):
+    """Two released CDL classification years; never assume one pixel = crop rotation."""
+    x, y = _albers5070(lat, lon)
+    samples = []
+    for year in (2025, 2024):
+        try:
+            response = httpx.get(
+                "https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLValue",
+                params={"year":year,"x":x,"y":y},
+                timeout=8.0, follow_redirects=False)
+            response.raise_for_status()
+            if len(response.content) > 16000:
+                raise ValueError("Unexpectedly large CDL response")
+            root = ET.fromstring(response.content)
+            tokens = []
+            for element in root.iter():
+                tag = element.tag.rsplit("}", 1)[-1].lower()
+                if tag in ("result", "return", "getcdlvaluereturn", "value"):
+                    value = (element.text or "").strip()
+                    if re.fullmatch(r"\d{1,3}", value):
+                        tokens.append(int(value))
+            if not tokens:
+                samples.append({"year":year,"status":"no_data"})
+                continue
+            code = tokens[0]
+            samples.append({"year":year,"status":"ok","code":code,
+                            "land_cover":_CDL_CLASSES.get(code, "Other mapped land-cover class")})
+        except Exception:
+            log.info("USDA NASS CDL %s unavailable at %.4f, %.4f",year,lat,lon)
+            samples.append({"year":year,"status":"unavailable"})
+    return {"status":"ok" if any(row["status"]=="ok" for row in samples) else "unavailable",
+            "source":"USDA NASS Cropland Data Layer (CropScape)",
+            "resolution_m":30,
+            "samples":samples,
+            "note":"30 m classified land cover at selected coordinate, not a verified field boundary or crop planting record. Crop classes may be misclassified."}
+
 def _safe_fetch(name, fn, lat, lon):
     try:
         return fn(lat, lon)
@@ -139,8 +218,9 @@ def install_soil_context_routes(app):
             "climate": _power_climatology,
             "terrain": _usgs_terrain,
             "water": _usgs_water,
+            "land_cover": _usda_cdl,
         }
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        with ThreadPoolExecutor(max_workers=4) as pool:
             futures = {name: pool.submit(_safe_fetch, name, fn, lat, lon)
                        for name, fn in providers.items()}
             results = {name: future.result() for name, future in futures.items()}
@@ -151,13 +231,14 @@ def install_soil_context_routes(app):
             "climate": results["climate"],
             "terrain": results["terrain"],
             "water": results["water"],
+            "land_cover": results["land_cover"],
             "prism_reference": prism,
             "other_sources": [
                 {"name": "NASA SMAP Level-3", "status": "separate_endpoint", "path": "/api/soil/smap",
                  "note": "Numeric satellite readings require authorized Earth Engine server credentials."},
-                {"name": "USDA Cropland Data Layer", "status": "reference_only",
+                {"name": "USDA Cropland Data Layer", "status": "connected",
                  "url": "https://nassgeodata.gmu.edu/CropScape/",
-                 "note": "The example script's Albers coordinate approximation is not accurate enough for 30 m crop history."},
+                 "note": "Exact EPSG:5070 point-classification requests for 2024 and 2025; land cover is not verified crop history."},
                 {"name": "USDA NASS QuickStats", "status": "reference_only",
                  "url": "https://quickstats.nass.usda.gov/",
                  "note": "County-specific yield queries need a NASS API key and verified county/commodity identifiers."},
