@@ -1,3 +1,44 @@
+## Auth0 Farm Calendar → connected Google Calendar (opt-in)
+
+A verified Auth0 farmer who has separately connected their Google account
+can now save a Farm Calendar task and simultaneously export it as an all-day
+event to the connected **primary** Google Calendar. The checkbox on the form
+is automatically selected when Google is connected and can be unchecked
+per task. Demo users do not get Google access.
+
+- Farm data remains the source of truth: `POST /api/farm/calendar`
+  persists the task to account-isolated TigerData first.
+- The browser then calls authenticated
+  `POST /api/farm/calendar/{id}/google-sync` with `{"confirmed":true}`.
+  The backend reads only that Auth0 account's stored task, creates a
+  Google event using the existing encrypted OAuth refresh token, and saves
+  the resulting Google event ID into the TigerData task.
+- The Google event ID is derived from the account and **stable farm task ID**.
+  Repeated clicks, Google 409 conflicts and a failed response after event
+  creation can safely be retried without creating a second event.
+- On Google failures, TigerData still contains the task. The dashboard
+  explicitly displays the partial failure, and a **Send to Google** control
+  appears beside unlinked existing tasks. A linked task shows
+  **✓ Google Calendar**.
+- The Google insertion is an all-day event in the Google **primary** calendar.
+  This is creation/export, not bi-directional Google import or continuous
+  calendar syncing. Deleting a Cropaganda task does not delete the Google
+  event; the interface warns the farmer when deleting linked tasks.
+- The existing Fieldy-confirmed Google first / farm-second behavior is
+  preserved. Verified users retain a working independent Google connection;
+  no Google call is made for public Demo sessions or when not connected.
+- Google connection configuration requires
+  `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` and
+  `GOOGLE_TOKEN_ENCRYPTION_KEY`; **do not put them in frontend code**.
+
+Tests: `python -m unittest discover -s tests -p
+'test_farm_google_sync.py' -v`, `node --test
+tests/test_google_farm_frontend.cjs`. They mock external Google requests
+and database writes. A full OAuth consent and Google event appearance
+requires an authenticated user with a connected Google Calendar.
+
+---
+
 ## Read-only public data in Demo Mode (November 2026)
 
 Public sample sessions use live public services for their selected coordinates:
