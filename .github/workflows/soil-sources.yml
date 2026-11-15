@@ -33,6 +33,10 @@ jobs:
         run: python -m compileall -q soil_rotation_api.py soil_context_api.py prism_reference.py
       - name: Farm cloud API regression tests
         run: python -m unittest discover -s tests -p 'test_farm_profile_api.py' -v
+      - name: Authenticated TigerData farm calendar tests
+        run: python -m unittest discover -s tests -p 'test_calendar_tigerdata_api.py' -v
+      - name: Browser calendar sync tests
+        run: node --test tests/test_calendar_cloud_frontend.cjs
       - name: Check frontend JavaScript syntax
         run: |
           node --check public/static/soil-rotation.js
