@@ -23,7 +23,8 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
         # Scripted, context-aware demonstration. Public demo users never
         # consume a server-side Gemini key or access real farm accounts.
         topic=question.lower()
-        crops=', '.join(c['name'] for c in plan['crops'])
+        crops=', '.join(str(c.get('name','')) for c in (plan.get('crops') or [])
+                         if isinstance(c,dict) and c.get('name')) or 'example crops'
         if any(x in topic for x in ('water','irrigat','dry','moist')):
             answer=('On this **fictional demonstration farm**, the mock soil moisture is about '
                     '**47%**. Consider checking soil moisture before irrigation, watching near-term '
@@ -46,7 +47,7 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
           'answer':answer+'\n\nFor real, Gemini-powered advice, sign in with a verified Auth0 account.',
           'assumptions':['All farm conditions, sensor readings, and soil characteristics are synthetic.'],
           'source_notes':['SIMULATED DEMO — no real provider data or paid Gemini request.'],
-          'highlights':[metric]},
+          'highlights':[metric] if plan.get('crops') else []},
           'provider':'demo','model':'sample-advice'}
     if user.get('mode')!='auth0' or not user.get('sub') or not user.get('email'):
         raise HTTPException(403,'Verified Auth0 login required')
