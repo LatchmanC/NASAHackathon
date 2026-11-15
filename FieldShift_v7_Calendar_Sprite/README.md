@@ -1,3 +1,12 @@
+
+### Troubleshooting mapped drainage and SMAP in New York
+
+- In **My Farm**, use the actual farm latitude/longitude, not a city-center preset. Urban land, water, and disturbed map units may be present in SSURGO without a rated drainage class.
+- The USDA endpoint reports `no_coverage` when there is no map unit, and `drainage_status: unrated` when a map unit exists but drainage was not rated. If a lower-percentage mapped component is the only one with a drainage rating, it is labeled **rated secondary component** and its dominant component is disclosed; it is not a field-level measurement.
+- USDA and Earth Engine request exceptions are logged on the server for diagnostics, with no credentials or stack traces returned to the browser. Failed external requests can be retried by refreshing the tab.
+- **SMAP Level-3** remains unavailable until both `EARTH_ENGINE_PROJECT` and `EARTH_ENGINE_SERVICE_ACCOUNT_JSON` are set securely on the server and the Earth Engine API/project authorization is complete. Missing configuration is reported explicitly. This is entirely separate from Google Calendar OAuth.
+- NASA POWER's high-resolution SMAP Level-4 **modeled/assimilated** moisture is a different product and must not be silently substituted for the Level-3 radiometer readings shown here.
+
 ## Soil & Crop Rotation (November 2026)
 
 The new **Soil & Rotation** tab keeps the existing Auth0, farm-plan, Fieldy, TigerData, ESP32, Google Calendar and NASA POWER API endpoints unchanged. It contains **Overview**, **Soil Map**, **Crop Guide** and **Rotation Planner** views.
