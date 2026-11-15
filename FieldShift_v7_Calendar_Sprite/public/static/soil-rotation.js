@@ -19,7 +19,8 @@ function soilTag(text){return html(text??'—');}
 function soilNum(value,digits=1,suffix=''){return value===null||value===undefined||!Number.isFinite(+value)?'—':Number(value).toFixed(digits)+suffix;}
 function soilSavedLocation(){
  const loc=saved('location');
- if(!loc||!Number.isFinite(Number(loc.latitude))||!Number.isFinite(Number(loc.longitude))||/^(Demo|Test Farm)\b/i.test(loc.label||''))return null;
+ if(!loc||!Number.isFinite(Number(loc.latitude))||!Number.isFinite(Number(loc.longitude)))return null;
+ if(farmCloudMode!=='sample'&&/^(Demo|Test Farm)\b/i.test(loc.label||''))return null;
  return loc;
 }
 function soilOpenPane(name){
@@ -65,7 +66,8 @@ function soilAttrRows(rows){
 }
 function soilShowContext(data){
  const c=data?.climate||{},t=data?.terrain||{},w=data?.water||{},p=data?.prism_reference||{},cdl=data?.land_cover||{};
- const msg=(item, fallback)=>item?.status==='ok'?'Verified provider response · '+(item.source||'public source'):
+ const msg=(item, fallback)=>item?.simulated?'SIMULATED DEMO — not a real provider response':
+  item?.status==='ok'?'Verified provider response · '+(item.source||'public source'):
   (item?.message||fallback);
  const set=(selector,value)=>{const el=soilEl(selector);if(el)el.innerHTML=value;};
  const setText=(selector,value)=>{const el=soilEl(selector);if(el)el.textContent=value;};
@@ -90,7 +92,8 @@ function soilShowContext(data){
   ['Nearby reporting gauges',w.station_count],
   ...((w.readings||[]).slice(0,4).map(r=>[(r.station||'Gauge')+' · '+(r.parameter||'reading'),soilNum(r.value,2,' '+(r.unit||''))]))
  ]:[]));
- setText('#soil-cdl-status',cdl.status==='ok'?'USDA Cropland Data Layer 30 m classifications; maps land cover, not exact farm cropping history.':(cdl.message||'USDA CDL sampling unavailable or not yet connected.'));
+ setText('#soil-cdl-status',cdl.simulated?'SIMULATED DEMO — fictional crop classifications, not USDA CDL data.':
+  cdl.status==='ok'?'USDA Cropland Data Layer 30 m classifications; maps land cover, not exact farm cropping history.':(cdl.message||'USDA CDL sampling unavailable or not yet connected.'));
  set('#soil-cdl-fields',soilAttrRows((cdl.samples||[]).map(x=>
    [String(x.year)+' land cover',x.status==='ok'?(x.land_cover+' · code '+x.code):x.status==='unavailable'?'Provider unavailable':'No classification reported'])));
  setText('#soil-prism-status',p.status==='reference_only'?
@@ -133,6 +136,12 @@ function soilRenderContext(){
 }
 function soilRenderMaps(){
  const loc=soilSavedLocation(),img=soilEl('#soil-map-image'),iframe=soilEl('#soil-osm');
+ if(farmCloudMode==='sample'){
+  img.removeAttribute('src');iframe.removeAttribute('src');
+  soilEl('#soil-map-notice').textContent='SIMULATED DEMO · Live USDA and OpenStreetMap maps are not loaded for the fictional farm.';
+  soilEl('#soil-map-location').textContent='Demo coordinates are illustrative only — not a surveyed field boundary.';
+  return;
+ }
  if(!loc){
   img.removeAttribute('src');iframe.removeAttribute('src');
   soilEl('#soil-map-notice').textContent='Save an actual farm location in My Farm to view a soil map.';
@@ -157,7 +166,7 @@ function soilRenderCropGuide(){
  soilEl('#soil-crop-library').innerHTML=list.map(c=>'<button type="button" class="soil-crop-option'+(soilState.crop===c.id?' active':'')+'" data-crop-id="'+c.id+'"><span class="emoji">'+c.emoji+'</span><strong>'+soilTag(c.name)+'</strong><small>'+soilTag(c.type)+'</small></button>').join('')||'<p class="soil-note">No matching crops in this reference library.</p>';
  const crop=SOIL_CROPS.find(c=>c.id===soilState.crop)||SOIL_CROPS[0];
  const p=soilState.profile?.status==='ok'?soilState.profile.profile:null;
- const site=p?'<div class="soil-explainer"><strong>Farm soil context:</strong> Published USDA map unit '+soilTag(p.mapunit_name||'—')+'; drainage '+soilTag(p.drainage_class||'not provided')+'. '+soilTag(crop.soilTip)+' This is not a verified crop-suitability result.</div>':
+ const site=p?'<div class="soil-explainer"><strong>Farm soil context:</strong> '+(farmCloudMode==='sample'?'SIMULATED DEMO profile ':'Published USDA map unit ')+soilTag(p.mapunit_name||'—')+'; drainage '+soilTag(p.drainage_class||'not provided')+'. '+soilTag(crop.soilTip)+' This is not a verified crop-suitability result.</div>':
  '<div class="soil-explainer">Site-specific assessment is unavailable until the official USDA soil profile is retrieved. Crop descriptions remain general guidance.</div>';
  soilEl('#soil-crop-detail').innerHTML='<div class="soil-crop-detail-header"><span>'+crop.emoji+'</span><div><h2>'+soilTag(crop.name)+'</h2><p>'+soilTag(crop.family)+' · '+soilTag(crop.season)+'</p></div></div>'+
  '<div class="soil-crop-info"><div><h3>Growing requirements</h3><p><b>Water:</b> '+soilTag(crop.water)+'</p><p><b>Typical soil:</b> '+soilTag(crop.soil)+'</p></div>'+
@@ -235,7 +244,8 @@ async function soilLoad(force=false){
  soilState.loadedKey=key;
  soilEl('#soil-refresh').disabled=true;
  soilEl('#soil-location').textContent='Saved farm · '+(loc.label||Number(loc.latitude).toFixed(4)+', '+Number(loc.longitude).toFixed(4));
- soilEl('#soil-usda-state').textContent='Querying the USDA Soil Data Mart…';
+ soilEl('#soil-usda-state').textContent=farmCloudMode==='sample'?
+  'Loading simulated soil reference…':'Querying the USDA Soil Data Mart…';
  const qs='latitude='+encodeURIComponent(loc.latitude)+'&longitude='+encodeURIComponent(loc.longitude)+(force?'&refresh=true':'');
  try{
   const [usda,context]=await Promise.allSettled([api('/api/soil/profile?'+qs,{timeout:52000}),api('/api/soil/context?'+qs,{timeout:58000})]);
@@ -245,7 +255,7 @@ async function soilLoad(force=false){
   // Retry failed upstream requests after one minute, not the normal one-hour UI interval.
   const retrySoon=[soilState.profile,soilState.context].some(x=>x?.status==='unavailable');
   soilState.lastLoaded=Date.now()-(retrySoon?3540000:0);
-  soilEl('#soil-source-time').textContent='Source check · '+new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+  soilEl('#soil-source-time').textContent=(farmCloudMode==='sample'?'SIMULATED DEMO · ':'Source check · ')+new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
   soilShowUsda(soilState.profile);
   soilShowContext(soilState.context);
   soilRenderMaps();
