@@ -234,8 +234,6 @@ def install_soil_context_routes(app):
             "land_cover": results["land_cover"],
             "prism_reference": prism,
             "other_sources": [
-                {"name": "NASA SMAP Level-3", "status": "separate_endpoint", "path": "/api/soil/smap",
-                 "note": "Numeric satellite readings require authorized Earth Engine server credentials."},
                 {"name": "USDA Cropland Data Layer", "status": "connected",
                  "url": "https://nassgeodata.gmu.edu/CropScape/",
                  "note": "Exact EPSG:5070 point-classification requests for 2024 and 2025; land cover is not verified crop history."},
