@@ -131,14 +131,42 @@ def nasa(request:Request,mode:str='auto',days:int=90,latitude:float=40.7128,long
 
 WEATHER_CODES={0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Drizzle',53:'Drizzle',55:'Drizzle',61:'Rain',63:'Rain',65:'Heavy rain',71:'Snow',73:'Snow',75:'Heavy snow',80:'Showers',81:'Showers',82:'Heavy showers',95:'Thunderstorm',96:'Thunderstorm',99:'Thunderstorm'}
 
-def forecast(lat,lon):
-    u='https://api.open-meteo.com/v1/forecast?'+urlencode({'latitude':lat,'longitude':lon,'timezone':'auto','forecast_days':7,'daily':'temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,weather_code'})
-    data=http_json('GET',u,timeout=13).get('daily',{})
+def forecast_bundle(lat,lon):
+    """One real Open-Meteo request for today's current conditions and the 7-day forecast."""
+    query={
+        'latitude':lat,'longitude':lon,'timezone':'auto','forecast_days':7,
+        'current':'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m',
+        'daily':'temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,weather_code'
+    }
+    payload=http_json('GET','https://api.open-meteo.com/v1/forecast?'+urlencode(query),timeout=13)
+    daily=payload.get('daily',{})
     records=[]
-    for i,day in enumerate(data.get('time',[])):
-        def v(k): return data.get(k,[None]*7)[i]
-        records.append({'date':day,'high_c':v('temperature_2m_max'),'low_c':v('temperature_2m_min'),'rain_chance_pct':v('precipitation_probability_max'),'precipitation_mm':v('precipitation_sum'),'wind_kmh':v('wind_speed_10m_max'),'summary':WEATHER_CODES.get(v('weather_code'),'Mixed weather')})
-    return records
+    for i,day in enumerate(daily.get('time',[])):
+        def value(key):
+            values=daily.get(key) or []
+            return values[i] if i<len(values) else None
+        records.append({'date':day,'high_c':value('temperature_2m_max'),
+                        'low_c':value('temperature_2m_min'),
+                        'rain_chance_pct':value('precipitation_probability_max'),
+                        'precipitation_mm':value('precipitation_sum'),
+                        'wind_kmh':value('wind_speed_10m_max'),
+                        'summary':WEATHER_CODES.get(value('weather_code'),'Mixed weather')})
+    current=payload.get('current') or {}
+    live=None
+    if current and current.get('temperature_2m') is not None:
+        live={'temperature_c':current.get('temperature_2m'),
+              'feels_like_c':current.get('apparent_temperature'),
+              'humidity_pct':current.get('relative_humidity_2m'),
+              'precipitation_mm':current.get('precipitation'),
+              'wind_kmh':current.get('wind_speed_10m'),
+              'summary':WEATHER_CODES.get(current.get('weather_code'),'Mixed weather'),
+              'observed_at':current.get('time'),
+              'timezone':payload.get('timezone','')}
+    return records,live
+
+def forecast(lat,lon):
+    # Keep the advisor's established list-of-days interface unchanged.
+    return forecast_bundle(lat,lon)[0]
 
 @app.get('/api/weather')
 def weather(mode:str='live',latitude:float=40.7128,longitude:float=-74.006):
@@ -147,11 +175,13 @@ def weather(mode:str='live',latitude:float=40.7128,longitude:float=-74.006):
     if mode!='live':raise HTTPException(400,'Only live weather forecasts are supported')
     loc={'latitude':lat,'longitude':lon,'label':f'{lat:.3f}, {lon:.3f}'}
     errors=[]
-    try: upcoming=forecast(lat,lon)
-    except Exception as ex:upcoming=[];errors.append('Forecast unavailable: '+str(ex)[:120])
+    try: upcoming,current=forecast_bundle(lat,lon)
+    except Exception as ex:
+        upcoming=[];current=None
+        errors.append('Forecast unavailable: '+str(ex)[:120])
     try: alerts=official_alerts(loc)
     except Exception as ex:alerts={'status':'unavailable','alerts':[],'message':'Official alert service could not be checked'};errors.append('Weather alert service unavailable')
-    return {'mode':'live','forecast':upcoming,'forecast_source':'Open-Meteo forecast — separate from NASA POWER', 'alert_status':alerts,'location':loc,'errors':errors}
+    return {'mode':'live','forecast':upcoming,'forecast_source':'Open-Meteo current conditions and forecast — separate from NASA POWER', 'current':current,'alert_status':alerts,'location':loc,'errors':errors}
 
 @app.get('/api/plan')
 def plan(request:Request):return SAMPLE_PLAN if is_sample(request) else DEFAULT_PLAN
