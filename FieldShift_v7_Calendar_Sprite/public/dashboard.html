@@ -112,16 +112,16 @@
 <div class="preview-banner">FARM DASHBOARD · Signed-in farm plans, calendar tasks, and rotation drafts are saved to TigerData. Sample mode uses browser storage. Paired ESP32 readings stay private.</div>
       <section class="panel-tab hidden" id="tab-crops">
         <div class="heading-row"><div><div class="eyebrow">FARM SETUP</div><h1>My Farm</h1><p class="subtitle">Manage your farm location, land allocation, and crops. For detailed USDA soil and rotation guidance, open Soil &amp; Rotation.</p></div><button type="button" class="secondary-btn" data-go="soil">🌾 Soil &amp; Rotation ›</button></div>
-        <div class="sync-note" id="farm-cloud-status" role="status">Automatically loading your farm and calendar from TigerData…</div>
+        <div class="sync-note" id="farm-cloud-status" role="status">Checking cloud storage for your farm…</div>
         <div class="form-actions" id="farm-cloud-actions">
-          <button type="button" class="secondary-btn" id="farm-cloud-refresh">Refresh TigerData now</button>
+          <button type="button" class="secondary-btn" id="farm-cloud-refresh">Reload from TigerData</button>
           <button type="button" class="secondary-btn hidden" id="farm-import-reopen">Import earlier browser data</button>
         </div>
         <section class="card section-gap hidden" id="farm-import-banner" aria-label="Import previously saved farm data">
-          <div class="card-heading"><div><h2>Review earlier browser data</h2>
-            <p class="muted" id="farm-import-summary">Cropaganda imports older browser records automatically when safe. If a previous import was skipped or needs attention, you can retry it here.</p>
+          <div class="card-heading"><div><h2>Import this browser’s farm data</h2>
+            <p class="muted" id="farm-import-summary">Earlier Cropaganda versions saved your data in this browser.</p>
           </div></div>
-          <p class="soil-note">On sign-in, Cropaganda tries a one-time import of earlier browser calendar tasks, farm details and rotation drafts. This button lets you retry if needed. It fills missing cloud records and merges calendar tasks by ID without replacing existing cloud entries. Browser originals remain as backup.</p>
+          <p class="soil-note">Import fills missing cloud records and adds calendar tasks/rotation drafts without replacing existing cloud entries. Existing cloud farm plans and locations are never overwritten. Original browser data remains as a backup.</p>
           <div class="form-actions">
             <button type="button" class="primary-btn" id="farm-import-button">Import browser data into TigerData</button>
             <button type="button" class="secondary-btn" id="farm-import-skip">Keep cloud data</button>
