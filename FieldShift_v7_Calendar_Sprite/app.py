@@ -23,6 +23,7 @@ from google_calendar_api import install_google_calendar_routes
 from farm_sync import install_farm_sync_routes
 from tigerdata_store import enabled as tiger_enabled, save_nasa as tiger_save_nasa
 from advisor_core import answer_question
+from demo_data import sample_weather
 
 ROOT=Path(__file__).resolve().parent
 load_dotenv(ROOT/'.env',override=False)
@@ -108,6 +109,12 @@ def location_api(payload:dict):
 def nasa(request:Request,mode:str='auto',days:int=90,latitude:float=40.7128,longitude:float=-74.006):
     try:lat,lon=valid_lat_lon(latitude,longitude)
     except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
+    if is_sample(request):
+        if not 14<=days<=120:raise HTTPException(400,'days must be 14–120')
+        if mode not in ('auto','demo','real'):raise HTTPException(400,'Unsupported mode')
+        # Even the usual "real" download button never calls NASA for demos.
+        return {'nasa_daily':demo_nasa_daily({'latitude':lat,'longitude':lon},days),
+                'note':'SIMULATED demo weather history; not NASA measurements'}
     if mode=='auto':return {'nasa_daily':None,'note':'No server-side cache; browser keeps fetched regional history.'}
     if not 14<=days<=120:raise HTTPException(400,'days must be 14–120')
     loc={'latitude':lat,'longitude':lon}
@@ -169,10 +176,12 @@ def forecast(lat,lon):
     return forecast_bundle(lat,lon)[0]
 
 @app.get('/api/weather')
-def weather(mode:str='live',latitude:float=40.7128,longitude:float=-74.006):
+def weather(request:Request,mode:str='live',latitude:float=40.7128,longitude:float=-74.006):
     try: lat,lon=valid_lat_lon(latitude,longitude)
     except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
     if mode!='live':raise HTTPException(400,'Only live weather forecasts are supported')
+    if is_sample(request):
+        return sample_weather(lat,lon)
     loc={'latitude':lat,'longitude':lon,'label':f'{lat:.3f}, {lon:.3f}'}
     errors=[]
     try: upcoming,current=forecast_bundle(lat,lon)
@@ -235,10 +244,10 @@ def gemini_status(request:Request):
     user=request.session.get('user',{}) if 'session' in request.scope else {}
     sample=user.get('mode')=='sample'
     eligible=gemini_approved(user)
-    return {'configured':bool(sample or (available and eligible)),
+    return {'configured':bool(available and eligible),
             'model':DEFAULT_GEMINI_MODEL,
             'mode':'sample' if sample else 'live' if available and eligible else 'unavailable',
-            'note':('Fixed sample guidance; no Gemini request.' if sample else
+            'note':('Demo mode, key not available. Fieldy uses simulated example advice; Gemini is not called.' if sample else
                     'Gemini is ready for your verified Auth0 account.' if available and eligible else
                     'Gemini API key is not configured.' if eligible else
                     'Sign in using your verified Auth0 account.')}
