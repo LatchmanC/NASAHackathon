@@ -33,7 +33,11 @@ bool configReady() {
          strlen(CROPOGANDA_WIFI_PASSWORD) > 0 &&
          strlen(CROPOGANDA_DEVICE_TOKEN) >= 30 &&
          strlen(CROPOGANDA_DEVICE_ID) > 0 &&
-         strstr(CROPOGANDA_ROOT_CA_PEM, "BEGIN CERTIFICATE") != nullptr;
+         strncmp(CROPOGANDA_WIFI_SSID, "YOUR_", 5) != 0 &&
+         strncmp(CROPOGANDA_WIFI_PASSWORD, "YOUR_", 5) != 0 &&
+         strncmp(CROPOGANDA_DEVICE_TOKEN, "YOUR_", 5) != 0 &&
+         strstr(CROPOGANDA_ROOT_CA_PEM, "BEGIN CERTIFICATE") != nullptr &&
+         strstr(CROPOGANDA_ROOT_CA_PEM, "PASTE_THE_") == nullptr;
 }
 
 void tryWiFi() {
