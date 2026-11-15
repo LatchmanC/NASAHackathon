@@ -1,5 +1,6 @@
 """Google export of account-owned Farm Calendar tasks (offline, no network)."""
 import copy
+import hashlib
 import unittest
 from unittest.mock import patch
 from fastapi import FastAPI, Request, HTTPException
@@ -51,7 +52,7 @@ class FarmGoogleSyncTests(unittest.TestCase):
         return self.rows[key]["revision"]
     def google_event(self,owner,event):
         self.calls.append((owner,event.request_id,event.confirmed,event.date))
-        return {"created":True,"event_id":"g"+event.request_id,
+        return {"created":True,"event_id":"g"+event.request_id[:16],
                 "google_url":"https://calendar.google.com/calendar/u/0/r"}
 
     def contexts(self):
@@ -97,11 +98,12 @@ class FarmGoogleSyncTests(unittest.TestCase):
         with self.contexts():
             r=self.sync()
         self.assertEqual(r.status_code,200,r.text)
-        self.assertEqual(r.json()["google_event_id"],"gfarm-task-1")
-        self.assertEqual(r.json()["events"][0]["google_event_id"],"gfarm-task-1")
+        key=hashlib.sha256(b"farm-task-1").hexdigest()
+        self.assertEqual(r.json()["google_event_id"],"g"+key[:16])
+        self.assertEqual(r.json()["events"][0]["google_event_id"],"g"+key[:16])
         self.assertEqual(self.rows[_key("auth0|alice")]["revision"],3)
-        self.assertEqual(self.rows[_key("auth0|alice")]["events"][0]["google_event_id"],"gfarm-task-1")
-        self.assertEqual(self.calls,[("auth0|alice","farm-task-1",True,"2026-11-20")])
+        self.assertEqual(self.rows[_key("auth0|alice")]["events"][0]["google_event_id"],"g"+hashlib.sha256(b"farm-task-1").hexdigest()[:16])
+        self.assertEqual(self.calls,[("auth0|alice",key,True,"2026-11-20")])
         self.assertIsNone(self.rows[_key("auth0|bob")]["events"][0]["google_event_id"])
 
     def test_repeat_click_does_not_create_duplicate_google_event(self):
@@ -136,8 +138,8 @@ class FarmGoogleSyncTests(unittest.TestCase):
             self.assertIsNone(self.rows[_key("auth0|alice")]["events"][0]["google_event_id"])
             retried=self.sync()
         self.assertEqual(retried.status_code,200)
-        self.assertEqual([x[1] for x in self.calls],["farm-task-1","farm-task-1"])
-        self.assertEqual(self.rows[_key("auth0|alice")]["events"][0]["google_event_id"],"gfarm-task-1")
+        self.assertEqual([x[1] for x in self.calls],[hashlib.sha256(b"farm-task-1").hexdigest()]*2)
+        self.assertEqual(self.rows[_key("auth0|alice")]["events"][0]["google_event_id"],"g"+hashlib.sha256(b"farm-task-1").hexdigest()[:16])
 
     def test_delete_during_google_request_is_detected_not_silent(self):
         self.login()
