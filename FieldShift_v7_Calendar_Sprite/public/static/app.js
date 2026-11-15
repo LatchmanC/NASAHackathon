@@ -2,7 +2,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));
-const state={tab:'crops',overview:null,plan:null,history:[],nasa:null,localDays:{},toastTimer:null,locations:null};
+const state={tab:'crops',overview:null,plan:null,history:[],nasa:null,localDays:{},toastTimer:null,locations:null,tigerLive:false};
 const units={temperature_c:'°C',humidity_pct:'%',pressure_hpa:'hPa',altitude_m:'m',ph:'pH',rain_wetness_pct:'%',light_pct:'%',gas_index:'/100',soil_moisture_pct:'%'};
 const metricInfo=[['temperature_c','Air temperature','☀'],['humidity_pct','Humidity','◉'],['pressure_hpa','Air pressure','⛅'],['soil_moisture_pct','Soil moisture index','◈'],['rain_wetness_pct','Rain plate wetness','☂'],['light_pct','Light sensor index','☼'],['gas_index','Gas sensor index','◌'],['altitude_m','Estimated altitude','△'],['ph','Acidity (pH)','◍']];
 const nasaInfo={temperature_c:['Mean temperature','°C'],temperature_max_c:['Max temperature','°C'],temperature_min_c:['Min temperature','°C'],humidity_pct:['Relative humidity','%'],pressure_hpa:['Surface pressure','hPa'],precipitation_mm:['Daily precipitation','mm/day'],solar_mj_m2_day:['Solar radiation','MJ/m²/day'],wind_2m_ms:['Wind at 2 m','m/s'],wind_10m_ms:['Wind at 10 m','m/s'],dew_point_c:['Dew point','°C'],soil_wetness_fraction:['Modeled topsoil wetness','fraction']};
@@ -71,9 +71,10 @@ async function api(path,opts={}){
 
 function tab(name){state.tab=name;$$('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.tab===name));$$('.panel-tab').forEach(n=>n.classList.toggle('hidden',n.id!==`tab-${name}`));$('.sidebar').classList.remove('open');if(name==='live')loadLive();if(name==='nasa')loadNASA();if(name==='history')initArchive();if(name==='crops'&&!state.plan)loadPlan();}
 let loadingLive=false;
+let lastLivePoll=0;
 async function loadLive(){
   if(loadingLive)return;
-  loadingLive=true;
+  loadingLive=true;lastLivePoll=Date.now();
   try{const o=await api('/api/overview',{timeout:12000});state.overview=o;updateLive(o);}
   catch(e){$('#sensor-state').textContent='Sensor station unavailable';$('#sync-message').textContent=e.message;showToast(e.message,true);}
   finally{loadingLive=false;}
@@ -536,7 +537,13 @@ function initSms(){
   $('#sms-remind').addEventListener('click',()=>smsAction('#sms-remind','/api/sms/remind-now',smsPayload()));
   loadSmsStatus();
 }
-loadAccount().then(()=>{initLocations();loadLive();loadSharedDeviceStatus();loadPlan();loadCalendar();loadGeminiStatus();initSms();});
-// Near-live HTTP polling: new readings appear within roughly 2 seconds of
-// a successful ESP32 upload when TigerData is configured; no fake readings.
-setInterval(()=>{if(state.tab==='live'&&document.visibilityState==='visible')loadLive();},2000);
+loadAccount().then(()=>{
+  api('/api/health').then(h=>{state.tigerLive=!!h.tigerdata_configured;}).catch(()=>{});
+  initLocations();loadLive();loadSharedDeviceStatus();loadPlan();loadCalendar();loadGeminiStatus();initSms();
+});
+// Poll every two seconds ONLY with TigerData. Legacy Vercel Blob must stay
+// on the 30-second cadence to protect limited cloud operation quotas.
+setInterval(()=>{
+  if(state.tab==='live'&&document.visibilityState==='visible'&&
+     Date.now()-lastLivePoll >= (state.tigerLive?2000:30000))loadLive();
+},2000);
