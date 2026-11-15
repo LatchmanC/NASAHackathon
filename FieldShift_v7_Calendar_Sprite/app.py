@@ -2,7 +2,8 @@
 No ESP32 feed/SQL until the actual device and TigerData integration is configured.
 """
 from __future__ import annotations
-import json, math, os, re
+import json, math, os, re, time
+from functools import lru_cache
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
@@ -105,6 +106,31 @@ def location_api(payload:dict):
         return {'location':result,'saved':False,'storage':'browser only'}
     except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
 
+@lru_cache(maxsize=64)
+def _demo_public_nasa(lat:float,lon:float,days:int,cache_hour:int):
+    """Public remote data only. Cache per instance to avoid repeated demo downloads.
+
+    No TigerData account is ever consulted or written by this helper.
+    """
+    return fetch_nasa_daily({"latitude":lat,"longitude":lon},days=days)
+
+@lru_cache(maxsize=64)
+def _demo_public_weather(lat:float,lon:float,cache_bucket:int):
+    """Live external forecast + official warnings, cached for 10 minutes."""
+    location={"latitude":lat,"longitude":lon,"label":f"{lat:.3f}, {lon:.3f}"}
+    errors=[]
+    try:upcoming,current=forecast_bundle(lat,lon)
+    except Exception as exc:
+        upcoming=[];current=None;errors.append("Forecast unavailable: "+str(exc)[:120])
+    try:alerts=official_alerts(location)
+    except Exception:
+        alerts={"status":"unavailable","alerts":[],"message":"Official alerts could not be checked"}
+        errors.append("Official weather alert service unavailable")
+    return {"mode":"live","demo":True,"sample_sensors_simulated":True,
+            "forecast":upcoming,"forecast_source":"REAL Open-Meteo forecast for the selected demo location",
+            "current":current,"alert_status":alerts,"location":location,"errors":errors,
+            "note":"Real public weather and NWS warnings; demo farm and ESP32 readings remain fictional."}
+
 @app.get('/api/nasa')
 def nasa(request:Request,mode:str='auto',days:int=90,latitude:float=40.7128,longitude:float=-74.006):
     try:lat,lon=valid_lat_lon(latitude,longitude)
@@ -112,9 +138,19 @@ def nasa(request:Request,mode:str='auto',days:int=90,latitude:float=40.7128,long
     if is_sample(request):
         if not 14<=days<=120:raise HTTPException(400,'days must be 14–120')
         if mode not in ('auto','demo','real'):raise HTTPException(400,'Unsupported mode')
-        # Even the usual "real" download button never calls NASA for demos.
-        return {'nasa_daily':demo_nasa_daily({'latitude':lat,'longitude':lon},days),
-                'note':'SIMULATED demo weather history; not NASA measurements'}
+        if mode=='demo':
+            return {'nasa_daily':demo_nasa_daily({'latitude':lat,'longitude':lon},days),
+                    'note':'Explicit synthetic sample — not NASA observations'}
+        # Public read-only NASA POWER data. Cache protects the upstream
+        # provider against repeated refreshes. No sample-account DB access.
+        try:
+            data=_demo_public_nasa(round(lat,3),round(lon,3),days,int(time.time()//3600))
+            return {'nasa_daily':data,
+                    'note':'REAL NASA POWER historical regional data for demo coordinates; '
+                           'no TigerData storage','tigerdata_stored_days':0,
+                    'demo':True}
+        except Exception as exc:
+            raise HTTPException(502,'NASA POWER is unavailable for the demo location: '+str(exc)[:130]) from exc
     if mode=='auto':return {'nasa_daily':None,'note':'No server-side cache; browser keeps fetched regional history.'}
     if not 14<=days<=120:raise HTTPException(400,'days must be 14–120')
     loc={'latitude':lat,'longitude':lon}
@@ -181,7 +217,9 @@ def weather(request:Request,mode:str='live',latitude:float=40.7128,longitude:flo
     except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
     if mode!='live':raise HTTPException(400,'Only live weather forecasts are supported')
     if is_sample(request):
-        return sample_weather(lat,lon)
+        # Demo users may see real PUBLIC weather and NWS data for their chosen
+        # coordinates, but never private users' forecast/location cache.
+        return _demo_public_weather(round(lat,3),round(lon,3),int(time.time()//600))
     loc={'latitude':lat,'longitude':lon,'label':f'{lat:.3f}, {lon:.3f}'}
     errors=[]
     try: upcoming,current=forecast_bundle(lat,lon)
