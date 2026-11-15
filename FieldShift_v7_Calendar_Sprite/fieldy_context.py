@@ -77,7 +77,7 @@ def _browser_soil(view,lat,lon):
     if isinstance(guide,dict):
         # User's current crop guide selection is reference advice, not a
         # measured farm property or proof a crop was planted.
-        result["selected_crop_guide"]=_fields(guide,("name","role","water","watch","tip","drainage","season"))
+        result["selected_crop_guide"]=_fields(guide,("name","type","family","water","watch","soil","soilTip","season","before","after"))
     goal=_clean(view.get("rotation_goal"),70)
     if goal:result["rotation_goal"]=goal
     current=_clean(view.get("current_crop"),80)
