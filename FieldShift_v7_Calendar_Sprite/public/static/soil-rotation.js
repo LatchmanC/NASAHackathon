@@ -36,13 +36,14 @@ function soilShowUsda(data){
  soilEl('#soil-usda-state').textContent=data?.message||'Select a farm location to look up USDA soil surveys.';
  soilEl('#soil-usda-state').classList.toggle('warn',!profile);
  soilEl('#soil-metric-texture').textContent=profile?.texture||'—';
- soilEl('#soil-metric-texture-note').textContent=profile?.mapunit_name||'Not available for the selected point';
- soilEl('#soil-metric-drainage').textContent=profile?.drainage_class||'—';
+ soilEl('#soil-metric-texture-note').textContent=profile?.selection_reason==='rated_alternative'?'Secondary mapped component · '+(profile.mapunit_name||'USDA map unit'):(profile?.mapunit_name||'Not available for the selected point');
+ soilEl('#soil-metric-drainage').textContent=profile?(profile.drainage_class||'Not rated'):'—';
  const details=profile?[
   ['Map unit',profile.mapunit_name],['Soil component',profile.component],
+  ['Component selection',profile.selection_reason==='rated_alternative'?'Rated secondary component (dominant: '+(profile.dominant_component||'unrated')+')':'Dominant map-unit component'],
   ['Component coverage',soilNum(profile.component_pct,0,'% of unit')],
   ['Surface texture',profile.texture],
-  ['Drainage class',profile.drainage_class],['Survey slope',soilNum(profile.slope_pct,1,'%')],
+  ['Drainage class',profile.drainage_class||'Not rated'],['Survey slope',soilNum(profile.slope_pct,1,'%')],
   ['Organic matter (survey)',soilNum(profile.organic_matter_pct,1,'%')],
   ['Survey pH (not ESP32)',soilNum(profile.ph_water,1)],
   ['Depth of sampled horizon',profile.depth_top_cm==null||profile.depth_bottom_cm==null?'—':profile.depth_top_cm+'–'+profile.depth_bottom_cm+' cm'],
@@ -79,7 +80,7 @@ function soilGraph(series){
 function soilShowSmap(data){
  const latest=data?.status==='ok'?data.latest:null;
  soilEl('#soil-metric-smap').textContent=latest?soilNum(latest.soil_moisture_m3_m3*100,1,'% vol.'):'—';
- soilEl('#soil-metric-smap-date').textContent=latest?'Observed '+latest.date+' · quality checked':'No satellite reading available';
+ soilEl('#soil-metric-smap-date').textContent=latest?'Observed '+latest.date+' · quality checked':data?.status==='setup_required'?'Earth Engine connection not configured':'No satellite reading available';
  soilEl('#soil-smap-state').textContent=data?.message||'No SMAP data available.';
  soilEl('#soil-smap-state').classList.toggle('warn',!latest);
  soilEl('#soil-smap-chart').innerHTML=data?.status==='ok'?soilGraph(data.readings||[]):'<div class="soil-chart-empty">'+soilTag(data?.message||'Satellite sampling unavailable.')+'</div>';
@@ -208,7 +209,9 @@ async function soilLoad(force=false){
   if(soilSavedLocation()&&key!==soilSavedLocation().latitude+','+soilSavedLocation().longitude)return;
   soilState.profile=usda.status==='fulfilled'?usda.value:{status:'unavailable',message:'USDA soil profile request failed. No values were inferred.'};
   soilState.smap=smap.status==='fulfilled'?smap.value:{status:'unavailable',message:'SMAP request failed. No satellite values were inferred.'};
-  soilState.lastLoaded=Date.now();
+  // Retry failed upstream requests after one minute, not the normal one-hour UI interval.
+  const retrySoon=[soilState.profile,soilState.smap].some(x=>x?.status==='unavailable');
+  soilState.lastLoaded=Date.now()-(retrySoon?3540000:0);
   soilEl('#soil-source-time').textContent='Source check · '+new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
   soilShowUsda(soilState.profile);
   soilShowSmap(soilState.smap);

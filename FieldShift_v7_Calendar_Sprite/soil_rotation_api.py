@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import logging
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, Request
 from device_api import _owner
@@ -15,6 +16,7 @@ USDA_URL="https://sdmdataaccess.sc.egov.usda.gov/Tabular/post.rest"
 USDA_SOURCE="USDA NRCS Soil Data Access (SSURGO/Soil Data Mart)"
 SMAP_SOURCE="NASA SMAP SPL3SMP_E v006 AM, via Google Earth Engine"
 SMAP_COLLECTION="NASA/SMAP/SPL3SMP_E/006"
+logger=logging.getLogger(__name__)
 SOIL_TTL=timedelta(hours=24)
 SMAP_TTL=timedelta(hours=6)
 
@@ -98,6 +100,80 @@ def _number(v):
         return None
 
 
+
+def _interpret_usda_table(data):
+    """Preserve map-unit coverage even when the dominant component is unrated."""
+    raw = data.get("Table") or []
+    if len(raw) < 2:
+        return {"status": "no_coverage",
+                "message": "No published USDA soil map unit was returned for this point. Use precise farm coordinates rather than a city center."}
+    columns = [str(x).lower() for x in raw[0]]
+    rows = [dict(zip(columns, row)) for row in raw[1:] if isinstance(row, list)]
+    if not rows:
+        return {"status": "no_coverage",
+                "message": "USDA returned no mapped soil components at this point. Check the exact farm coordinates."}
+
+    # Rows are ordered by surveyed component percentage, not site-specific certainty.
+    dominant = rows[0]
+    unrated = {"", "not rated", "not assigned", "none", "null", "n/a"}
+    def has_rating(row):
+        return str(row.get("drainage_class") or "").strip().lower() not in unrated
+
+    # If the largest component has no drainage class (common for urban or
+    # disturbed land), show the largest *rated* alternative and disclose that
+    # it is not the dominant component. Never fabricate a drainage class.
+    rated = next((row for row in rows if has_rating(row)), None)
+    selected = rated or dominant
+    alternative = rated is not None and (
+        selected.get("component_name") != dominant.get("component_name")
+        or selected.get("mukey") != dominant.get("mukey")
+    )
+    selected_drainage = str(selected.get("drainage_class") or "").strip() if rated else None
+    component_keys = {
+        (str(row.get("mukey") or ""), str(row.get("component_name") or ""))
+        for row in rows
+    }
+    profile = {
+        "mapunit_key": str(selected.get("mukey") or ""),
+        "mapunit_symbol": selected.get("map_symbol"),
+        "mapunit_name": selected.get("map_name"),
+        "survey_area": selected.get("survey_area"),
+        "component": selected.get("component_name"),
+        "component_pct": _number(selected.get("component_pct")),
+        "dominant_component": dominant.get("component_name"),
+        "selection_reason": "rated_alternative" if alternative else "dominant",
+        "drainage_class": selected_drainage,
+        "slope_pct": _number(selected.get("slope_pct")),
+        "hydrologic_group": selected.get("hydrologic_group"),
+        "depth_top_cm": _number(selected.get("depth_top_cm")),
+        "depth_bottom_cm": _number(selected.get("depth_bottom_cm")),
+        "organic_matter_pct": _number(selected.get("organic_matter_pct")),
+        "ph_water": _number(selected.get("ph_water")),
+        "available_water_cm_per_cm": _number(selected.get("available_water_cm_per_cm")),
+        "sand_pct": _number(selected.get("sand_pct")),
+        "silt_pct": _number(selected.get("silt_pct")),
+        "clay_pct": _number(selected.get("clay_pct")),
+        "texture": selected.get("texture")
+    }
+    if alternative:
+        message = ("The dominant map-unit component has no drainage rating. "
+                   "Showing a rated secondary component instead; this is not "
+                   "verified drainage at the precise farm location.")
+    elif rated:
+        message = ("Published USDA drainage for the dominant mapped soil component; "
+                   "not a site-specific soil test.")
+    else:
+        message = ("USDA mapped this location, but no surveyed component has a "
+                   "rated drainage class. This is possible on urban, disturbed, "
+                   "or miscellaneous land. Try the exact farm coordinates.")
+    return {
+        "status": "ok", "profile": profile,
+        "drainage_status": "rated_secondary" if alternative else "rated" if rated else "unrated",
+        "components_found": len(component_keys),
+        "message": message
+    }
+
+
 def _query_usda(lat,lon):
     # Controlled parameterization: coordinates have already been reduced to floats.
     # Query only the mapunit that intersects the point; no user-provided SQL.
@@ -126,38 +202,7 @@ def _query_usda(lat,lon):
                        timeout=22.0,follow_redirects=False,
                        headers={"Accept":"application/json","User-Agent":"Cropaganda Soil Guide/1.0"})
     response.raise_for_status()
-    data=response.json()
-    raw=data.get("Table") or []
-    if not raw:
-        return {"status":"no_coverage","message":"No published USDA soil map unit was returned for this point."}
-    columns=[str(x).lower() for x in raw[0]]
-    rows=[dict(zip(columns,row)) for row in raw[1:] if isinstance(row,list)]
-    if not rows:
-        return {"status":"no_coverage","message":"No USDA soil components were returned for this point."}
-    selected=rows[0]
-    profile={
-        "mapunit_key":str(selected.get("mukey") or ""),
-        "mapunit_symbol":selected.get("map_symbol"),
-        "mapunit_name":selected.get("map_name"),
-        "survey_area":selected.get("survey_area"),
-        "component":selected.get("component_name"),
-        "component_pct":_number(selected.get("component_pct")),
-        "drainage_class":selected.get("drainage_class"),
-        "slope_pct":_number(selected.get("slope_pct")),
-        "hydrologic_group":selected.get("hydrologic_group"),
-        "depth_top_cm":_number(selected.get("depth_top_cm")),
-        "depth_bottom_cm":_number(selected.get("depth_bottom_cm")),
-        "organic_matter_pct":_number(selected.get("organic_matter_pct")),
-        "ph_water":_number(selected.get("ph_water")),
-        "available_water_cm_per_cm":_number(selected.get("available_water_cm_per_cm")),
-        "sand_pct":_number(selected.get("sand_pct")),
-        "silt_pct":_number(selected.get("silt_pct")),
-        "clay_pct":_number(selected.get("clay_pct")),
-        "texture":selected.get("texture")
-    }
-    return {"status":"ok","profile":profile,"components_found":len(rows),
-            "message":"Dominant published map-unit component; not a site-specific laboratory sample."}
-
+    return _interpret_usda_table(response.json())
 
 def _smap_is_configured():
     return bool(os.getenv("EARTH_ENGINE_PROJECT") and os.getenv("EARTH_ENGINE_SERVICE_ACCOUNT_JSON"))
@@ -218,6 +263,7 @@ def install_soil_rotation_routes(app):
         try:
             result=_query_usda(lat,lon)
         except Exception:
+            logger.exception("USDA Soil Data Access request failed")
             return {"status":"unavailable","source":USDA_SOURCE,
                     "location":{"latitude":lat,"longitude":lon},
                     "message":"USDA Soil Data Access is unavailable. No guessed soil values are shown."}
@@ -235,13 +281,15 @@ def install_soil_rotation_routes(app):
                "documentation":"https://developers.google.com/earth-engine/datasets/catalog/NASA_SMAP_SPL3SMP_E_006"}
         if not _smap_is_configured():
             return {**extra,"status":"setup_required","readings":[],"latest":None,
-                    "message":"SMAP sampling requires a registered Earth Engine project and server-side service-account credentials. This is separate from Google Calendar OAuth."}
+                    "message":"SMAP Level-3 sampling needs EARTH_ENGINE_PROJECT and EARTH_ENGINE_SERVICE_ACCOUNT_JSON in the server environment. Google Calendar OAuth cannot authenticate Earth Engine.",
+                    "missing_configuration":[name for name in ("EARTH_ENGINE_PROJECT","EARTH_ENGINE_SERVICE_ACCOUNT_JSON") if not os.getenv(name,"").strip()]}
         if not refresh:
             cache=_cache_get(owner,lat,lon,"smap",SMAP_TTL)
             if cache:return cache
         try:
             result=_query_smap(lat,lon)
         except Exception:
+            logger.exception("Earth Engine SMAP sampling failed")
             return {**extra,"status":"unavailable","readings":[],"latest":None,
                     "message":"SMAP point sampling could not be completed; verify Earth Engine access and try again."}
         result.update(extra)
