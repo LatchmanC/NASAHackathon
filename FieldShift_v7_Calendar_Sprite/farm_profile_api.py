@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 import logging
+import hashlib
 import re
 from typing import Any
 from uuid import uuid4
@@ -359,7 +360,8 @@ def install_farm_profile_routes(app):
         # Import lazily: never invoke Google from a public/demo account.
         from google_calendar_api import AddEvent, create_google_event
         response=create_google_event(owner,AddEvent(
-            confirmed=True,request_id=event_id,date=task["date"],
+            confirmed=True,request_id=hashlib.sha256(event_id.encode('utf-8')).hexdigest(),
+            date=task["date"],
             kind=task["kind"],crop=task.get("crop",""),note=task.get("note","")))
         google_id=response["event_id"]
         try:
