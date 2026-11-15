@@ -275,3 +275,7 @@ install_sms_routes(app, generate_gemini_reply, DEFAULT_GEMINI_MODEL, forecast)
 # USDA NRCS point-soil survey and optional quality-screened NASA SMAP data.
 from soil_rotation_api import install_soil_rotation_routes
 install_soil_rotation_routes(app)
+
+# Historical PRISM references and independent NASA POWER/USGS context.
+from soil_context_api import install_soil_context_routes
+install_soil_context_routes(app)
