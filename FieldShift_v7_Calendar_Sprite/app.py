@@ -19,7 +19,7 @@ from sensor_store import configured as sensor_configured, read_snapshot, age_sec
 from device_api import resolve_device_data
 from device_api import install_device_routes
 from history_api import install_history_routes
-from tigerdata_store import enabled as tiger_enabled
+from tigerdata_store import enabled as tiger_enabled, save_nasa as tiger_save_nasa
 from advisor_core import answer_question
 
 ROOT=Path(__file__).resolve().parent
@@ -103,7 +103,7 @@ def location_api(payload:dict):
     except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
 
 @app.get('/api/nasa')
-def nasa(mode:str='auto',days:int=90,latitude:float=40.7128,longitude:float=-74.006):
+def nasa(request:Request,mode:str='auto',days:int=90,latitude:float=40.7128,longitude:float=-74.006):
     try:lat,lon=valid_lat_lon(latitude,longitude)
     except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
     if mode=='auto':return {'nasa_daily':None,'note':'No server-side cache; browser keeps fetched regional history.'}
@@ -112,7 +112,18 @@ def nasa(mode:str='auto',days:int=90,latitude:float=40.7128,longitude:float=-74.
     if mode=='demo': return {'nasa_daily':demo_nasa_daily(loc,days),'note':'Synthetic demonstration data; not NASA observations'}
     if mode!='real': raise HTTPException(400,'Unsupported mode')
     try:
-        return {'nasa_daily':fetch_nasa_daily(loc,days=days),'note':'Real historical NASA POWER regional data'}
+        history=fetch_nasa_daily(loc,days=days)
+        stored=0
+        note='Real historical NASA POWER regional data'
+        if tiger_enabled():
+            user=request.session.get('user',{}) if 'session' in request.scope else {}
+            if user.get('mode')=='auth0' and user.get('sub') and history.get('is_real_nasa'):
+                try:
+                    stored=tiger_save_nasa(user['sub'],lat,lon,history.get('rows') or [])
+                    note+=' · '+str(stored)+' daily rows stored in TigerData'
+                except HTTPException:
+                    note+=' · TigerData history storage unavailable'
+        return {'nasa_daily':history,'note':note,'tigerdata_stored_days':stored}
     except Exception as exc:
         raise HTTPException(502,'NASA POWER could not be retrieved: '+str(exc)[:180])
 

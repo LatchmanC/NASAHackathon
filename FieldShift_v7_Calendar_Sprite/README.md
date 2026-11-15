@@ -1,3 +1,39 @@
+# Cropoganda — TigerData live monitoring and historical archive
+
+**Website:** https://cropaganda.garden
+
+## Architecture
+
+- **ESP32 upload endpoint stays unchanged:** `POST https://cropaganda.garden/api/device/ingest`. Existing device pairing tokens remain valid.
+- **TigerData not yet connected to this deployment:** add the database credentials after provisioning the service. The existing private Vercel Blob feed remains active until that point; its minimum upload interval remains five minutes.
+- **When TigerData is configured**, every accepted ESP32 upload **updates the most recent live record immediately**. The Live Sensor Data tab polls every **2 seconds** while visible. This is near-live HTTP polling, not WebSockets; latency is typically up to a few seconds plus upload/network time.
+- **Every 10 minutes**, the first actual ESP32 measurement to arrive during each UTC time bucket is retained in `cropoganda_sensor_history`. This is not an invented or averaged value. There is no timestamp without a real upload.
+- The **History** tab allows selection of a month, date, and saved timestamp (UTC), and shows the archived sensor values and a stored NASA POWER Daily row for that day and the farm location.
+- **NASA POWER historical daily records are stored in TigerData** when a farmer clicks **Download latest NASA data** in the NASA tab (automatically archived during the download), or **Store latest NASA POWER Daily in TigerData** in the History tab. NASA data can lag the current calendar day; it is not a real-time weather forecast.
+- Own and view-only shared devices remain account-isolated using verified Auth0 identities. Shared History shows the owner's sensor archive; NASA lookup uses the location and owner's stored regional records.
+
+## Enable TigerData (one-time)
+
+1. Create a TigerData service; copy its **PostgreSQL connection string** with TLS enabled.
+2. In the TigerData SQL editor, execute the complete migration file `sql/cropoganda_tigerdata.sql`. This creates four tables and indexes. Do not run unreviewed SQL that drops existing tables.
+3. In Vercel **Cropoganda's existing project** (still internally named `nasa-hackathon`), add a **Production encrypted variable**: `TIGERDATA_DATABASE_URL` = the full connection string. Keep it out of GitHub and firmware.
+4. Redeploy, then check `https://cropaganda.garden/api/health` for `"tigerdata_configured":true`.
+5. Reflash the ESP32 with an upload interval of e.g. **5,000 ms** (only after the DB schema and connection have been verified). TigerData allows a minimum accepted interval of 2 s by default. Set `CROPOGANDA_MIN_SENSOR_SECONDS` in Vercel if another minimum is required. Existing upload tokens do not change.
+6. Open NASA POWER Daily and select **Download latest NASA data** to save available daily regional observations to TigerData. Visit the **History** tab to browse archived timestamps.
+
+**Important:** New TigerData snapshots begin when the new DB is enabled. The older Blob snapshot remains as a fallback and is **not automatically backfilled** into the new 10-minute archive. NASA daily observations are updated when explicitly downloaded or synced; a background daily sync scheduler is not yet configured. Device uploads and 2-second dashboard polling increase database operations and Vercel runtime usage. For larger deployments, use a pooled TigerData connection and consider a managed realtime transport.
+
+## Auth0 hosted login wording
+
+Website text is already rebranded **Cropoganda**, but Auth0 Universal Login is a separate hosted service. In Auth0 Dashboard set **Settings → General → Friendly Name** to `Cropoganda`; then rename the linked **Applications → Applications** client to `Cropoganda`. To make the description exactly **Log in to Cropoganda**, under **Branding → Universal Login → Advanced Options → Custom Text**, select the Login prompt and enter `Log in to Cropoganda`. Do not rename the Auth0 tenant's technical hostname or rotate the client ID.
+
+## Compatibility retained
+
+- `FIELDSHIFT_*` environment variable names, `fieldshift_session` cookie, `fieldshift_v9` browser storage prefix, `X-FieldShift-Request` CSRF header, and `fieldshift-*-token-v1` cryptographic salts intentionally retain their existing values, to preserve logins, crop/calendar state, and ESP32 upload and sharing tokens.
+- Site address `cropaganda.garden` is **unchanged** (its spelling differs from the Cropoganda product name).
+
+---
+
 ## Shared ESP32 access (read-only) and live forecasts
 
 A farmer with ESP32 uploads can open **Live Sensor Data → Share ESP32 readings** and generate a **viewing token** for their actual device ID. Another verified Auth0 user can paste it under **Enter a viewing token**, then select **Shared ESP32**. Both accounts read the same private snapshot; only the original account's ESP32 upload token authorizes posting readings. A viewing token cannot be used with `/api/device/ingest`.
