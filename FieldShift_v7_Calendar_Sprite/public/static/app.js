@@ -275,13 +275,85 @@ function collectPlan(){return {total_area:Number($('#farm-size').value),area_uni
 async function savePlan(){try{const r=await api('/api/plan',{method:'POST',body:collectPlan()});
   $('#plan-save-status').textContent=farmCloudMode==='ready'?'Saved in TigerData':'Saved in sample browser storage';showToast('Farm plan saved.');}
   catch(e){showToast(e.message,true);}}
+// Chat is tab-session scoped, not localStorage or TigerData. The previous
+// turns are attached to the next Gemini request for a genuine conversation.
+let fieldyTurns=[];
+const fieldySessionKey=()=> 'cropaganda_fieldy_tab_v1_'+fsAccount;
+function fieldyLoadHistory(){
+  try{
+    const stored=JSON.parse(sessionStorage.getItem(fieldySessionKey())||'[]');
+    fieldyTurns=Array.isArray(stored)?stored.filter(x=>
+      x&&['user','assistant'].includes(x.role)&&typeof x.content==='string').slice(-20):[];
+  }catch(e){fieldyTurns=[];}
+  fieldyRenderConversation();
+}
+function fieldyStoreHistory(){
+  // Limits browser storage and request size; no conversation is stored on server.
+  fieldyTurns=fieldyTurns.slice(-20);
+  try{sessionStorage.setItem(fieldySessionKey(),JSON.stringify(fieldyTurns));}
+  catch(e){showToast('Chat continues in this tab but browser session storage is unavailable.',true);}
+}
+function fieldyClearHistory(){
+  if(!confirm('Clear this tab\'s Fieldy conversation? This does not change farm or calendar records.'))return;
+  fieldyTurns=[];
+  try{sessionStorage.removeItem(fieldySessionKey());}catch(e){}
+  fieldyRenderConversation();
+}
 function renderFieldyAdvice(a){
-  // Escaped text only; no model-authored HTML is executed.
-  const assumptions=(a.assumptions||[]).map(x=>`<li>${html(x)}</li>`).join('');
-  const sources=(a.source_notes||[]).map(x=>`<li>${html(x)}</li>`).join('');
-  return `<div class="fieldy-answer" style="white-space:pre-wrap;line-height:1.65">${html(a.answer||'No answer returned.')}</div>`+
+  // Convert *only* safe escaped **emphasis** into bold. No model HTML executes.
+  const answer=html(String(a?.answer||'No answer returned.')).replace(/\*\*([^\n*]{1,130})\*\*/g,'<strong>$1</strong>');
+  const assumptions=(Array.isArray(a?.assumptions)?a.assumptions:[]).map(x=>`<li>${html(x)}</li>`).join('');
+  const sources=(Array.isArray(a?.source_notes)?a.source_notes:[]).map(x=>`<li>${html(x)}</li>`).join('');
+  const highlights=(Array.isArray(a?.highlights)?a.highlights:[]).slice(0,4).filter(x=>x&&x.label&&x.value).map(x=>
+    `<div class="fieldy-highlight"><span class="fieldy-highlight-label">${html(x.label)}</span>`+
+    `<strong class="fieldy-highlight-value">${html(x.value)}</strong>`+
+    `<span class="fieldy-highlight-source">Source: ${html(x.source||'Not specified')}</span></div>`).join('');
+  return `<div class="fieldy-message-content">${answer}</div>`+
+    (highlights?`<div class="fieldy-highlights" aria-label="Key insights">${highlights}</div>`:'')+
     (assumptions?`<div class="fieldy-section"><b>Assumptions / estimates</b><ul>${assumptions}</ul></div>`:'')+
     (sources?`<div class="fieldy-section"><b>Data used / limitations</b><ul>${sources}</ul></div>`:'');
+}
+function fieldyRenderConversation(pending=null,error=''){
+  const box=$('#fieldy-chat-history');
+  if(!box)return;
+  const entries=fieldyTurns.map(turn=>{
+    const user=turn.role==='user';
+    const label=user?'You':turn.provider==='demo'?'Fieldy · Demonstration':'Fieldy · Powered by Gemini';
+    const body=user?`<div class="fieldy-message-content">${html(turn.content)}</div>`:
+      renderFieldyAdvice(turn.advice||{answer:turn.content});
+    return `<div class="fieldy-message ${user?'fieldy-message-user':'fieldy-message-assistant'}">`+
+      `<div class="fieldy-message-label">${label}</div>${body}</div>`;
+  });
+  if(!entries.length)entries.push('<p class="fieldy-welcome">Hi, farmer! 🌱 Ask me about your crops, farm conditions, or the Soil &amp; Rotation guide. I can follow up on earlier questions in this tab.</p>');
+  if(pending){
+    entries.push(`<div class="fieldy-message fieldy-message-user"><div class="fieldy-message-label">You</div><div class="fieldy-message-content">${html(pending)}</div></div>`);
+    entries.push('<div class="fieldy-message fieldy-message-assistant thinking"><div class="fieldy-message-label">Fieldy · Gemini</div>Reviewing your question and available farm/soil information…</div>');
+  }
+  if(error)entries.push(`<p class="fieldy-welcome" role="alert">${html(error)}</p>`);
+  box.innerHTML=entries.join('');
+  box.scrollTop=box.scrollHeight;
+}
+function fieldyAddTurn(role,content,advice=null,provider='gemini'){
+  fieldyTurns.push({role,content:String(content).slice(0,7000),advice,provider});
+  fieldyStoreHistory();
+  fieldyRenderConversation();
+}
+function fieldySoilView(){
+  if(typeof soilState==='undefined')return {};
+  const location=currentLocation();
+  if(!Number.isFinite(Number(location?.latitude))||!Number.isFinite(Number(location?.longitude)))
+    return {};
+  const crop=typeof SOIL_CROPS!=='undefined'?SOIL_CROPS.find(x=>x.id===soilState.crop):null;
+  const profile=soilState.profile?.status==='ok'?soilState.profile.profile:null;
+  return {latitude:location.latitude,longitude:location.longitude,
+    profile_status:soilState.profile?.status,
+    profile:profile||null,
+    context:soilState.context||null,
+    crop_guide:crop?{name:crop.name,type:crop.type,family:crop.family,water:crop.water,
+      soil:crop.soil,watch:crop.watch,soilTip:crop.soilTip,season:crop.season,
+      before:crop.before,after:crop.after}:null,
+    rotation_goal:$('#soil-rotation-goal')?.value||null,
+    current_crop:$('#soil-current-crop')?.value||null};
 }
 let pendingFieldyCalendar=null;
 async function confirmFieldyCalendar(){
@@ -307,9 +379,9 @@ async function confirmFieldyCalendar(){
     calendarState.selected=p.date;renderCalendar();
     pendingFieldyCalendar=null;persist('fieldy_calendar_pending',null);
     $('#fieldy-calendar-confirmation').classList.add('hidden');
-    $('#advice-output').textContent='Added '+(calendarKinds[p.kind]||'Farm task')+
+    fieldyAddTurn('assistant','Added '+(calendarKinds[p.kind]||'Farm task')+
       (p.crop?' for '+p.crop:'')+' on '+prettyDay(p.date)+
-      ' to both your farm calendar and Google Calendar.';
+      ' to both your farm calendar and Google Calendar.');
     showToast('Saved to Farm Calendar and Google Calendar.');
   }catch(err){showToast('Could not sync both calendars: '+err.message,true);}
   finally{button.disabled=false;}
@@ -348,6 +420,7 @@ async function loadGoogleCalendarStatus(){
 async function askGemini(){
   const promptBox=$('#farm-question');
   const typed=promptBox.value.trim();
+  if(!typed)return;
   if(pendingFieldyCalendar&&/^(yes|yeah|yep|sure|confirm|add it|yes please|do it)[.!\s]*$/i.test(typed)){
     promptBox.value='';
     await confirmFieldyCalendar();return;
@@ -356,22 +429,32 @@ async function askGemini(){
     promptBox.value='';
     dismissFieldyCalendar();return;
   }
-  const btn=$('#ask-gemini');btn.disabled=true;btn.textContent='Fieldy is thinking…';
-  const bubble=$('#advice-output');bubble.classList.add('thinking');bubble.textContent='🌱 Reviewing your question, crops, NASA history, weather and any ESP32 readings…';
+  const btn=$('#ask-gemini');
+  if(btn.disabled)return;
+  btn.disabled=true;btn.textContent='Fieldy is thinking…';
+  // Only successful, bounded turns are sent; history is always scoped to
+  // this browser tab and signed-in account.
+  const prior=fieldyTurns.slice(-12).map(t=>({role:t.role,content:t.content.slice(0,1400)}));
+  fieldyRenderConversation(typed);
   try{
-    const req={plan:collectPlan(),model:'gemini-3.5-flash-lite',question:typed,weather_mode:'live'};
-    promptBox.value=''; // Clear immediately on submit; Gemini still receives the captured text.
+    const req={plan:collectPlan(),model:'gemini-3.5-flash-lite',question:typed,
+      chat_history:prior,soil_view:fieldySoilView(),weather_mode:'live'};
     const r=await api('/api/plan/advice',{method:'POST',body:req,timeout:110000});
     if(!r.advice_structured)throw Error('Gemini returned an unexpected response.');
-    bubble.innerHTML=renderFieldyAdvice(r.advice_structured);
+    fieldyTurns.push({role:'user',content:typed.slice(0,2500)});
+    fieldyTurns.push({role:'assistant',content:String(r.advice_structured.answer||'').slice(0,7000),
+      advice:r.advice_structured,provider:r.provider||'gemini'});
+    fieldyStoreHistory();
+    fieldyRenderConversation();
+    promptBox.value='';
     pendingFieldyCalendar=null;persist('fieldy_calendar_pending',null);
     $('#fieldy-calendar-confirmation').classList.add('hidden');
     if(r.calendar_proposal)showFieldyCalendarProposal(r.calendar_proposal);
-    bubble.scrollTop=0;
-  }catch(e){bubble.textContent='🌱 I couldn’t prepare your advice right now. '+e.message;showToast(e.message,true);}
-  finally{bubble.classList.remove('thinking');btn.disabled=false;btn.textContent='✦ Ask Fieldy for advice';}
+  }catch(e){
+    fieldyRenderConversation(null,'Could not answer yet: '+e.message+' — your question is still in the text box.');
+    showToast(e.message,true);
+  }finally{btn.disabled=false;btn.textContent='✦ Ask Fieldy for advice';}
 }
-
 async function loadGeminiStatus(){try{const s=await api('/api/gemini/status');$('#advisor-key-status').textContent=s.mode==='sample'?'● Sample Fieldy advice · No Gemini call':s.configured?'● Gemini ready · Verified Auth0 account':'○ '+(s.note||'Gemini unavailable');}catch(e){$('#advisor-key-status').textContent='Gemini settings unavailable';}}
 
 function fillSelect(element, values, placeholder) {
@@ -586,6 +669,10 @@ function attach(){
   $('#farm-size').oninput=updateAllocation;$('#area-unit').onchange=updateAllocation;
   $('#add-crop').onclick=()=>{$('#crop-list').appendChild(cropRow({name:'',area:1,stage:'Planning'}));updateAllocation();};
   $('#save-farm').onclick=savePlan;$('#ask-gemini').onclick=askGemini;$('#pair-device').onclick=pairDevice;
+  $('#fieldy-clear-chat').addEventListener('click',fieldyClearHistory);
+  $('#farm-question').addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();askGemini();}
+  });
   $('#fieldy-calendar-yes').onclick=confirmFieldyCalendar;
   $('#fieldy-calendar-no').onclick=dismissFieldyCalendar;
   $('#connect-google-calendar').onclick=()=>location.assign('/api/google/connect');
@@ -701,6 +788,7 @@ async function loadAccount(){
     if(!data.authenticated){window.location.replace('/');return;}
     if(data.authenticated){
       fsAccount='auth_'+String(data.user?.sub||'').replace(/[^a-z0-9_-]/gi,'_').slice(0,80);
+      fieldyLoadHistory();
       $('#sensor-view').value=saved('sensor_view','auto');
       farmCloudMode=data.user?.mode==='sample'?'sample':'loading';
       $('#device-pair-panel').classList.toggle('hidden',data.user?.mode==='sample');
