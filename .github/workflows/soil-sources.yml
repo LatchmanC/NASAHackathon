@@ -50,6 +50,8 @@ jobs:
         run: node --test tests/test_google_farm_frontend.cjs
       - name: Google Calendar backend syntax
         run: python -m compileall -q google_calendar_api.py farm_profile_api.py
+      - name: ESP32 30-second upload firmware and database contract
+        run: node --test tests/test_esp32_30s_firmware.cjs
       - name: Check frontend JavaScript syntax
         run: |
           node --check public/static/soil-rotation.js
