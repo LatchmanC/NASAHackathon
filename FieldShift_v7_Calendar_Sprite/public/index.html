@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cropoganda — Sign in</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cropaganda — Sign in</title>
 <style>
 :root{--dark:#153d2c;--green:#24714f;--line:#dbe7dc;--mute:#65786c}*{box-sizing:border-box}
 body{margin:0;background:linear-gradient(125deg,#ecf6ee,#f8faf6);min-height:100vh;font-family:ui-sans-serif,system-ui,Arial;color:var(--dark);display:grid;place-items:center;padding:24px}
@@ -8,9 +8,9 @@ h1{margin:0;font-size:31px;letter-spacing:-1px}.sub{color:var(--mute);margin:10p
 button,.action{display:block;width:100%;text-align:center;border:0;background:var(--green);color:white;padding:14px 16px;border-radius:11px;font:inherit;font-weight:750;text-decoration:none;cursor:pointer;margin-top:20px}.action{margin-top:10px}
 .signup-row{text-align:center;margin-top:16px;color:var(--mute);font-size:14px}.signup-row a{color:var(--green);font-weight:750;text-decoration:underline;text-underline-offset:3px}.error{color:#ac3232;font-size:13px;min-height:18px}.fine{color:var(--mute);font-size:12px;text-align:center;margin-top:20px}
 </style></head><body><div class="login">
-<div class="brand"><span class="icon">🌱</span> Cropoganda</div><h1>Welcome back</h1><p class="sub">Sign in to your farm intelligence dashboard.</p>
+<div class="brand"><span class="icon">🌱</span> Cropaganda</div><h1>Welcome back</h1><p class="sub">Sign in to your farm intelligence dashboard.</p>
 <a class="action" href="/auth/login">Sign in with Auth0</a>
-<p class="signup-row">New to Cropoganda? <a href="/auth/signup">Create an account</a></p>
+<p class="signup-row">New to Cropaganda? <a href="/auth/signup">Create an account</a></p>
 <p id="error" class="error" role="alert" aria-live="polite"></p>
 <p class="fine">Secure sign-in and account creation are managed by Auth0. Pair your ESP32 after signing in.</p>
 </div><script>const err=new URLSearchParams(location.search).get('error');if(err==='signup_unavailable')document.getElementById('error').textContent='Account registration is not currently enabled.';fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j.authenticated)location.replace('/dashboard.html')}).catch(()=>{});</script>

@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#184b3a">
-  <title>Cropoganda | Farm intelligence</title>
+  <title>Cropaganda | Farm intelligence</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/home.css">
 </head>
 <body>
 <div class="shell">
   <aside class="sidebar" aria-label="Main navigation">
-    <div class="brand"><span class="brandmark" aria-hidden="true">🌽</span><span><strong>Cropoganda</strong><small>FARM INTELLIGENCE</small></span></div>
+    <div class="brand"><span class="brandmark" aria-hidden="true">🌽</span><span><strong>Cropaganda</strong><small>FARM INTELLIGENCE</small></span></div>
     <nav id="navigation">
       <div class="sidetitle">OVERVIEW</div>
       <button class="navitem active" data-tab="home"><span class="navicon">⌂</span>Home</button>
@@ -24,7 +24,7 @@
       <button class="navitem" data-tab="nasa"><span class="navicon">☀</span>Weather &amp; NASA</button>
       <button class="navitem" data-tab="history"><span class="navicon">▤</span>History</button>
     </nav>
-    <div class="sidebar-bottom"><div class="account-box" id="account-box" aria-live="polite">Loading account…</div><div class="sidebar-pi"><span class="statusdot"></span><div><strong>Field Station</strong><small id="side-status">Connecting...</small></div></div><p>ESP32 → SQL Cloud</p><span class="small-muted">Cropoganda field dashboard</span></div>
+    <div class="sidebar-bottom"><div class="account-box" id="account-box" aria-live="polite">Loading account…</div><div class="sidebar-pi"><span class="statusdot"></span><div><strong>Field Station</strong><small id="side-status">Connecting...</small></div></div><p>ESP32 → SQL Cloud</p><span class="small-muted">Cropaganda field dashboard</span></div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -109,7 +109,7 @@
       </section>
 <div class="preview-banner">FARM DASHBOARD · Farm plans and calendar are stored in this browser. Paired ESP32 readings stay private. TigerData provides near-live updates and 10-minute archives when connected.</div>
       <section class="panel-tab hidden" id="tab-crops">
-        <div class="heading-row"><div><div class="eyebrow">FARM SETUP + GEMINI</div><h1>Crop Management</h1><p class="subtitle">Tell Cropoganda where your land is, how much area you have, and which crops you're growing.</p></div><span class="data-badge">Farming advisor</span></div>
+        <div class="heading-row"><div><div class="eyebrow">FARM SETUP + GEMINI</div><h1>Crop Management</h1><p class="subtitle">Tell Cropaganda where your land is, how much area you have, and which crops you're growing.</p></div><span class="data-badge">Farming advisor</span></div>
         <section class="card section-gap location-inline"><div class="card-heading"><div><h2>Farm location</h2><p class="muted">Used for NASA records, forecasts, and crop planning.</p></div><strong id="location-current">Not selected</strong></div>
           <div class="location-mode"><label><input type="radio" name="loc-mode" value="preset" checked> Country / State / City</label><label><input type="radio" name="loc-mode" value="coords"> Exact latitude / longitude</label></div>
           <div id="area-field" class="location-selects">
@@ -231,11 +231,11 @@
         <div class="card section-gap"><div class="card-heading"><h2>Recent daily values</h2><span class="data-badge" id="nasa-date-range">Source date range</span></div><div class="table-scroll"><table id="nasa-table"><thead><tr><th>Date</th><th>Mean °C</th><th>High °C</th><th>Low °C</th><th>Humidity %</th><th>Pressure hPa</th><th>Rain mm</th><th>Solar MJ/m²</th><th>Wind m/s</th><th>Soil wetness</th></tr></thead><tbody><tr><td colspan="10">No NASA daily observations yet.</td></tr></tbody></table></div><p class="footnote">POWER is regional, not a sensor on your farm. Missing values are shown as —. NASA POWER is not a short-term forecast or a severe-weather warning service.</p></div>
         <div class="main-columns section-gap">
           <section class="card forecast-card"><div class="card-heading"><div><h2>Upcoming weather</h2><p class="muted">Forecast from a separate weather service</p></div><span class="data-badge">Live forecast</span></div><div id="weather-report" class="forecast-list">Loading…</div><p class="footnote" id="forecast-source"></p></section>
-          <section class="card alerts-card"><div class="card-heading"><div><h2>Severe weather warnings</h2><p class="muted">Official U.S. National Weather Service alerts where available</p></div><span class="icon-outline">⚠</span></div><div id="alert-section">Checking…</div><div id="local-flags"></div><p class="footnote">If alerts are unavailable, consult your local meteorological authority. Cropoganda is not a life-safety warning system.</p></section>
+          <section class="card alerts-card"><div class="card-heading"><div><h2>Severe weather warnings</h2><p class="muted">Official U.S. National Weather Service alerts where available</p></div><span class="icon-outline">⚠</span></div><div id="alert-section">Checking…</div><div id="local-flags"></div><p class="footnote">If alerts are unavailable, consult your local meteorological authority. Cropaganda is not a life-safety warning system.</p></section>
         </div>
       </section>
       <section class="panel-tab hidden" id="tab-history">
-        <div class="heading-row"><div><div class="eyebrow">TIGERDATA + NASA POWER</div><h1>History</h1><p class="subtitle">Select a calendar day and saved 10-minute sensor snapshot, then view the recorded ESP32 data beside NASA POWER observations for that same day.</p></div><span class="data-badge">Saved snapshots · Eastern Time</span></div>
+        <div class="heading-row"><div><div class="eyebrow">TIGERDATA SENSOR ARCHIVE</div><h1>History</h1><p class="subtitle">Browse actual saved ESP32 sensor readings by Eastern date and recorded timestamp.</p></div><span class="data-badge">Saved snapshots · Eastern Time</span></div>
         <div class="card section-gap">
           <div class="card-heading"><div><h2>Browse saved readings</h2><p class="muted">Each entry is an actual reading saved within a 10-minute interval. Dates and times use Eastern Time (EST/EDT).</p></div></div>
           <label for="archive-date">Saved date (Eastern Time)</label>
@@ -246,18 +246,12 @@
           <label for="archive-snapshot">Saved timestamp</label><select id="archive-snapshot" style="width:100%"><option value="">Choose a date first</option></select>
           <div class="heading-actions section-gap">
             <button class="primary-btn" id="archive-load" type="button">Load saved snapshot</button>
-            <button class="secondary-btn" id="archive-sync-nasa" type="button">Store latest NASA POWER Daily in TigerData</button>
           </div>
           <p id="archive-message" class="footnote">Checking TigerData archive availability…</p>
         </div>
         <div class="card section-gap">
           <div class="card-heading"><div><h2>ESP32 reading at the selected time</h2><p id="archive-sensor-time" class="muted">No snapshot selected.</p></div><span class="data-badge">Recorded sensor data</span></div>
           <div id="archive-sensor-cards" class="metric-grid"><div class="empty-card">Select a saved timestamp above.</div></div>
-        </div>
-        <div class="card section-gap">
-          <div class="card-heading"><div><h2>NASA POWER Daily for that date</h2><p class="muted">Daily regional historical observations, not measurements from the ESP32.</p></div><span class="data-badge">NASA POWER</span></div>
-          <div id="archive-nasa-cards" class="metric-grid"><div class="empty-card">Select a saved timestamp to view the corresponding NASA day.</div></div>
-          <p id="archive-nasa-note" class="footnote">NASA data is stored for the farm location selected under Crop Management. It may lag the current day.</p>
         </div>
       </section>
 

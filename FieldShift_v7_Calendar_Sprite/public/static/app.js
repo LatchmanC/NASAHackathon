@@ -1,12 +1,12 @@
-/* Cropoganda 3-tab browser interface. No external JS dependencies. */
+/* Cropaganda 3-tab browser interface. No external JS dependencies. */
 'use strict';
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));
 const state={tab:'crops',overview:null,plan:null,history:[],nasa:null,localDays:{},toastTimer:null,locations:null,tigerLive:false};
 const units={temperature_c:'°C',humidity_pct:'%',pressure_hpa:'hPa',altitude_m:'m',ph:'pH',rain_wetness_pct:'%',light_pct:'%',gas_index:'/100',soil_moisture_pct:'%'};
-const metricInfo=[['temperature_c','Air temperature','☀'],['humidity_pct','Humidity','◉'],['pressure_hpa','Air pressure','⛅'],['soil_moisture_pct','Soil moisture index','◈'],['rain_wetness_pct','Rain plate wetness','☂'],['light_pct','Light sensor index','☼'],['gas_index','Gas sensor index','◌'],['altitude_m','Estimated altitude','△'],['ph','Acidity (pH)','◍']];
-// Live UI deliberately excludes the unconnected gas and pH inputs.
-const liveMetricInfo=metricInfo.filter(([key])=>key!=='gas_index'&&key!=='ph');
+const metricInfo=[['temperature_c','Air temperature','☀'],['humidity_pct','Humidity','◉'],['pressure_hpa','Air pressure','⛅'],['soil_moisture_pct','Soil moisture index','◈'],['rain_wetness_pct','Rain plate wetness','☂'],['light_pct','Light sensor index','☼'],['altitude_m','Estimated altitude','△']];
+// Live and History show only supported sensor metrics; raw stored data is unchanged.
+const liveMetricInfo=metricInfo;
 const easternTime=t=>{if(!t)return 'Never';const d=new Date(t);return Number.isNaN(d.getTime())?String(t):d.toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'});};
 const nasaInfo={temperature_c:['Mean temperature','°C'],temperature_max_c:['Max temperature','°C'],temperature_min_c:['Min temperature','°C'],humidity_pct:['Relative humidity','%'],pressure_hpa:['Surface pressure','hPa'],precipitation_mm:['Daily precipitation','mm/day'],solar_mj_m2_day:['Solar radiation','MJ/m²/day'],wind_2m_ms:['Wind at 2 m','m/s'],wind_10m_ms:['Wind at 10 m','m/s'],dew_point_c:['Dew point','°C'],soil_wetness_fraction:['Modeled topsoil wetness','fraction']};
 const comparable={temperature_c:'temperature_c',humidity_pct:'humidity_pct',pressure_hpa:'pressure_hpa'};
@@ -458,38 +458,9 @@ async function loadArchiveEntry(){
       '<article class="metric-card"><div class="metric-top"><span>'+html(label)+
       '</span><span class="metric-icon">'+icon+'</span></div><div class="metric-value">'+fixed(reading[key])+
       '<span class="metric-unit">'+html(units[key])+'</span></div><div class="metric-hint">Saved ESP32 reading</div></article>').join('');
-    if(d.nasa?.observations){
-      const n=d.nasa.observations;
-      const fields=[['temperature_c','Mean temperature'],['temperature_max_c','Maximum temperature'],
-        ['temperature_min_c','Minimum temperature'],['humidity_pct','Humidity'],['pressure_hpa','Pressure'],
-        ['precipitation_mm','Daily rainfall'],['solar_mj_m2_day','Solar energy'],
-        ['wind_2m_ms','Wind at 2 m'],['soil_wetness_fraction','Modeled soil wetness']];
-      $('#archive-nasa-cards').innerHTML=fields.map(([key,label])=>
-        '<article class="metric-card"><div class="metric-top"><span>'+html(label)+
-        '</span></div><div class="metric-value">'+fixed(n[key],key==='soil_wetness_fraction'?3:1)+
-        '<span class="metric-unit">'+html(nasaInfo[key]?.[1]||'')+
-        '</span></div><div class="metric-hint">NASA POWER · '+html(day)+'</div></article>').join('');
-      $('#archive-nasa-note').textContent='Stored NASA POWER Daily for '+day+
-        ' · Retrieved '+easternTime(d.nasa.stored_at)+
-        ' · Regional historical data; not a farm sensor measurement.';
-    }else{
-      $('#archive-nasa-cards').innerHTML='<div class="empty-card">No NASA POWER Daily record stored for this day and location. Use the Sync button to save available regional history.</div>';
-      $('#archive-nasa-note').textContent='NASA POWER may not have published this day yet. Its daily records are separate from the ESP32 measurements.';
-    }
     $('#archive-message').textContent='Loaded authentic saved ESP32 reading for '+day+'.';
   }catch(e){showToast('Unable to load history: '+e.message,true);}
 }
-async function syncArchiveNASA(){
-  const button=$('#archive-sync-nasa');button.disabled=true;button.textContent='Syncing NASA POWER…';
-  try{
-    const r=await api('/api/history/sync-nasa',{method:'POST',body:{location:archiveLocation(),days:120},timeout:115000});
-    showToast('Saved '+r.stored_days+' NASA POWER days in TigerData.');
-    $('#archive-message').textContent='NASA POWER synced: '+r.period+' · '+r.stored_days+' days stored.';
-    if($('#archive-snapshot').value)await loadArchiveEntry();
-  }catch(e){showToast('NASA sync unavailable: '+e.message,true);}
-  finally{button.disabled=false;button.textContent='Store latest NASA POWER Daily in TigerData';}
-}
-
 function attach(){
   $$('.navitem').forEach(n=>n.addEventListener('click',()=>tab(n.dataset.tab)));
   $('#mobile-menu').onclick=()=>$('.sidebar').classList.toggle('open');
@@ -498,7 +469,6 @@ function attach(){
   $('#export-csv').onclick=exportCSV;
   $('#archive-date').onchange=loadArchiveTimes;
   $('#archive-load').onclick=loadArchiveEntry;
-  $('#archive-sync-nasa').onclick=syncArchiveNASA;
   $('#fetch-nasa').onclick=fetchNASA;$('#change-nasa-location').onclick=()=>tab('crops');
   $('#nasa-variable').onchange=renderNASAChart;$('#chart-days').onchange=renderNASAChart;
   $('#sensor-view').onchange=e=>{persist('sensor_view',e.target.value);loadLive();loadHistory();loadLocalDays();};
