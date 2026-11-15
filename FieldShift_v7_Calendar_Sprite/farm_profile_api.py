@@ -298,35 +298,6 @@ def install_farm_profile_routes(app):
             sections=_read_all(conn,account_key)
         return {"storage":"TigerData","results":result,"sections":sections}
 
-    @app.get("/api/farm/calendar")
-    def read_calendar(request:Request):
-        """Fetch only the signed-in farmer's calendar, directly from TigerData.
-
-        An absent calendar document is an empty calendar; any database failure
-        is an error, never a fake empty response or browser fallback.
-        """
-        account_key=_key(_owner(request))
-        try:
-            with _connection() as conn:
-                _setup(conn)
-                with conn.cursor() as cur:
-                    cur.execute("""SELECT value,revision,updated_at
-                                   FROM cropoganda_farm_documents
-                                   WHERE account_key=%s AND section='calendar'""",
-                                (account_key,))
-                    row=cur.fetchone()
-        except HTTPException:
-            raise
-        except Exception as exc:
-            log.exception("TigerData calendar read failed")
-            raise HTTPException(503,"Farm calendar could not be loaded from TigerData") from exc
-        return {
-            "events": _json(row[0]) if row else [],
-            "revision": int(row[1]) if row else 0,
-            "updated_at": row[2].isoformat() if row else None,
-            "storage": "TigerData"
-        }
-
     @app.post("/api/farm/calendar")
     def add_calendar(req:TaskWrite,request:Request):
         account_key=_key(_owner(request))
