@@ -1,3 +1,33 @@
+## Soil & Rotation data expansion — November 2026
+
+The **Data Sources** section is an internal subtab of the existing **Soil & Rotation** tab alongside Overview, Soil Map, Crop Guide, and Rotation Planner. It is not a separate application page.
+
+### Connected live/public source adapters
+
+- **USDA NRCS SSURGO Soil Data Access**: `/api/soil/profile` now uses a **two-step spatial lookup**: WGS84 farm point → map-unit key → soil component properties. Surface texture is a separate optional query, so a failed texture lookup no longer prevents reading drainage. A rated secondary component is explicitly marked as secondary; unrated urban map units remain **Not rated** rather than being assigned synthetic drainage.
+- **NASA POWER agroclimatology**: `/api/soil/context` provides real long-term regional temperature, humidity, precipitation, radiation, and surface pressure when the public POWER API responds. It never labels climatology as a current sensor reading or SMAP retrieval.
+- **USGS 3DEP**: terrain elevation and a clearly labeled single-direction northward transect slope estimate (not a field gradient or soil drainage class).
+- **USGS NWIS**: nearby water gauge observation summaries. These are regional hydrology, **not** field moisture.
+- **USDA NASS Cropland Data Layer**: 2024 and 2025 point land-cover classification requests using an actual NAD83 CONUS Albers (EPSG:5070) projection, not the approximate degree scaling in the supplied Gemini script. A 30 m classification is not verified historic crop planting.
+
+### Uploaded PRISM archive integration
+
+- `prism_reference.py` contains directly sampled values from the provided **2022 2.5 arc-minute** annual GeoTIFFs: precipitation, mean/min/max temperature, dew point and total/sloped solar radiation.
+- Includes the provided **2016 30-arcsecond** mean minimum/maximum temperatures, dew point and sloped solar samples.
+- These historical grid-cell values are samples at **26 named reference points**. The UI reports the distance to the closest available point and never pretends a nearby sample is a farm-point measurement. It declines to show any reference values if the farm is more than 30 km from a sample point. For precise arbitrary coordinates, use the linked PRISM Explorer.
+- The supplied 2016 and 2025 PRISM precipitation ZIPs were Git LFS pointer files rather than raster archives and are not represented as data.
+- The ~185 MB source ZIP collection was **not committed** to GitHub; the small sampled archive is kept with provenance instead.
+
+### Not connected / not fabricated
+
+The supplied Gemini code described approximately 24 datasets but did not include functional authenticated access to each one. The Data Sources section links to **USDA QuickStats, AMS, OpenET**, and exposes the separately configured **NASA SMAP Level-3** service. No fake county yields, prices, ECOSTRESS ET, GEDI biomass, NDVI, or pseudo-SMAP values are substituted. Additional credentials and verified API adapters would be required before these sources can power numerical crop recommendations.
+
+Server-side endpoints remain Auth0-protected and keyed to the selected location. Google Calendar OAuth and ESP32 device ingestion are unchanged.
+
+To verify: from `FieldShift_v7_Calendar_Sprite`, run `python -m unittest discover -s tests -p 'test_soil*.py' -v` and `node --check public/static/soil-rotation.js`. CI runs the same checks plus a best-effort external USDA diagnostic. Vercel Preview/Production deploy only after a successful build.
+
+---
+
 
 ### Troubleshooting mapped drainage and SMAP in New York
 

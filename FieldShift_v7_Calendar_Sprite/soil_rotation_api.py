@@ -174,35 +174,107 @@ def _interpret_usda_table(data):
     }
 
 
-def _query_usda(lat,lon):
-    # Controlled parameterization: coordinates have already been reduced to floats.
-    # Query only the mapunit that intersects the point; no user-provided SQL.
-    wkt=f"point({lon:.5f} {lat:.5f})"
-    query=f"""SELECT TOP 24
-     mu.mukey AS mukey,mu.musym AS map_symbol,mu.muname AS map_name,
-     le.areasymbol AS survey_area,
-     c.compname AS component_name,c.comppct_r AS component_pct,
-     c.drainagecl AS drainage_class,c.slope_r AS slope_pct,
-     c.hydgrp AS hydrologic_group,
-     ch.hzdept_r AS depth_top_cm,ch.hzdepb_r AS depth_bottom_cm,
-     ch.om_r AS organic_matter_pct,ch.ph1to1h2o_r AS ph_water,
-     ch.awc_r AS available_water_cm_per_cm,
-     ch.sandtotal_r AS sand_pct,ch.silttotal_r AS silt_pct,
-     ch.claytotal_r AS clay_pct,
-     ctg.texture AS texture
-     FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('{wkt}') AS hit
-     INNER JOIN mapunit mu ON mu.mukey=hit.mukey
-     INNER JOIN legend le ON le.lkey=mu.lkey
-     LEFT JOIN component c ON c.mukey=mu.mukey AND c.majcompflag='Yes'
-     LEFT JOIN chorizon ch ON ch.cokey=c.cokey AND ch.hzdept_r=0
-     LEFT JOIN chtexturegrp ctg ON ctg.chkey=ch.chkey AND ctg.rvindicator='Yes'
-     ORDER BY c.comppct_r DESC,ch.hzdept_r ASC"""
+def _sda_rows(sql):
+    """USDA SDA tabular POST: column names are row zero in JSON+COLUMNNAME."""
     import httpx
-    response=httpx.post(USDA_URL,data={"query":query,"format":"JSON+COLUMNNAME"},
-                       timeout=22.0,follow_redirects=False,
-                       headers={"Accept":"application/json","User-Agent":"Cropaganda Soil Guide/1.0"})
+    response = httpx.post(
+        USDA_URL, json={"query": sql, "format": "JSON+COLUMNNAME"},
+        timeout=19.0, follow_redirects=False,
+        headers={"Accept": "application/json", "User-Agent": "Cropaganda Soil Guide/2.0"})
     response.raise_for_status()
-    return _interpret_usda_table(response.json())
+    payload = response.json()
+    if "error" in payload:
+        raise ValueError("USDA SDA returned an error response")
+    table = payload.get("Table") or []
+    if not table:
+        return []
+    if not isinstance(table[0], list):
+        raise ValueError("USDA SDA returned unexpected column metadata")
+    columns = [str(value).lower() for value in table[0]]
+    return [dict(zip(columns, row)) for row in table[1:]
+            if isinstance(row, list) and len(row) == len(columns)]
+
+
+def _query_usda(lat, lon):
+    """Resolve the actual map unit first; then query its individual components.
+
+    Two small SQL requests avoid a costly spatial join with multiple horizon
+    and texture rows, which has been unreliable for some NY locations.
+    """
+    wkt = f"POINT({lon:.5f} {lat:.5f})"
+    spatial_sql = ("SELECT TOP 1 mukey FROM "
+                   f"SDA_Get_Mukey_from_intersection_with_WktWgs84('{wkt}')")
+    matched = _sda_rows(spatial_sql)
+    if not matched:
+        return {"status": "no_coverage",
+                "message": "USDA has no intersecting soil map unit at these coordinates. "
+                           "Try actual field coordinates instead of a city-center preset."}
+    mukey = str(matched[0].get("mukey") or "")
+    if not mukey.isdigit():
+        raise ValueError("USDA returned a nonnumeric map unit key")
+
+    # Do NOT filter out minor components; urban map units sometimes contain a
+    # rated secondary component even if the dominant one is not rated.
+    component_sql = f"""
+    SELECT TOP 40
+       mu.mukey AS mukey, mu.musym AS map_symbol,
+       mu.muname AS map_name, le.areasymbol AS survey_area,
+       c.compname AS component_name, c.comppct_r AS component_pct,
+       c.drainagecl AS drainage_class, c.slope_r AS slope_pct,
+       c.hydgrp AS hydrologic_group,
+       ch.hzdept_r AS depth_top_cm, ch.hzdepb_r AS depth_bottom_cm,
+       ch.om_r AS organic_matter_pct, ch.ph1to1h2o_r AS ph_water,
+       ch.awc_r AS available_water_cm_per_cm,
+       ch.sandtotal_r AS sand_pct, ch.silttotal_r AS silt_pct,
+       ch.claytotal_r AS clay_pct
+    FROM mapunit mu
+    JOIN legend le ON le.lkey = mu.lkey
+    LEFT JOIN component c ON c.mukey = mu.mukey
+    LEFT JOIN chorizon ch ON ch.cokey = c.cokey AND ch.hzdept_r = 0
+    WHERE mu.mukey = '{mukey}'
+    ORDER BY c.comppct_r DESC
+    """
+    rows = _sda_rows(component_sql)
+    if not rows:
+        return {"status": "no_components",
+                "message": "USDA identified a map unit but published no component properties."}
+
+    # Texture is a useful optional lookup, not a reason to lose drainage if
+    # the texture join or value is unavailable. Separate it from the main SQL.
+    try:
+        first = rows[0]
+        # The top-horizon texture may be absent; do not label the soil series
+        # as a measured texture.
+        texture_sql = f"""
+        SELECT TOP 30 c.compname AS component_name, ctg.texture AS texture
+        FROM component c
+        JOIN chorizon ch ON ch.cokey = c.cokey AND ch.hzdept_r = 0
+        JOIN chtexturegrp ctg ON ctg.chkey = ch.chkey AND ctg.rvindicator = 'Yes'
+        WHERE c.mukey = '{mukey}'
+        ORDER BY c.comppct_r DESC
+        """
+        textures = _sda_rows(texture_sql)
+        for row in rows:
+            value = next((item.get("texture") for item in textures
+                          if item.get("component_name") == row.get("component_name")
+                          and item.get("texture")), None)
+            row["texture"] = value
+    except Exception:
+        logger.info("Optional USDA texture lookup unavailable for map unit %s", mukey)
+        for row in rows:
+            row["texture"] = None
+
+    columns = ["mukey", "map_symbol", "map_name", "survey_area",
+               "component_name", "component_pct", "drainage_class", "slope_pct",
+               "hydrologic_group", "depth_top_cm", "depth_bottom_cm",
+               "organic_matter_pct", "ph_water", "available_water_cm_per_cm",
+               "sand_pct", "silt_pct", "clay_pct", "texture"]
+    values = [[row.get(col) for col in columns] for row in rows]
+    result = _interpret_usda_table({"Table": [columns, *values]})
+    result["lookup_method"] = "point -> map unit -> component (separate SDA requests)"
+    return result
+
+
 
 def _smap_is_configured():
     return bool(os.getenv("EARTH_ENGINE_PROJECT") and os.getenv("EARTH_ENGINE_SERVICE_ACCOUNT_JSON"))
