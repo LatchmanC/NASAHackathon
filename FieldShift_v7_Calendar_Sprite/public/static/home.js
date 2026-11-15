@@ -18,7 +18,8 @@ function cropReference(name){
 }
 function dashboardLocation(){
  const selected=saved('location');
- return selected&&Number.isFinite(Number(selected.latitude))&&Number.isFinite(Number(selected.longitude))&&!/^(Demo|Test Farm)\b/i.test(selected.label||'')
+ return selected&&Number.isFinite(Number(selected.latitude))&&Number.isFinite(Number(selected.longitude))&&
+   (farmCloudMode==='sample'||!/^(Demo|Test Farm)\b/i.test(selected.label||''))
     ?selected:null;
 }
 function displayDay(dateValue){
