@@ -88,9 +88,9 @@
 .fieldy-message .fieldy-section li{margin:4px 0;color:#627e6c;font-size:11px}
 @media(max-width:660px){.advisor-stage{grid-template-columns:minmax(0,1fr)}.advisor-character{display:none}.fieldy-message{max-width:100%}.fieldy-chat-history{max-height:390px}}
 
-/* Per-account TigerData Farm Calendar synchronization status. */
-.calendar-cloud-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.calendar-cloud-tools .secondary-btn{padding:7px 10px;font-size:11px}
-.calendar-sync-status{color:#607967;font-size:11px;line-height:1.5;margin:-10px 0 19px}
-.data-badge.warn{background:#fff3e8;border-color:#f2d8b3;color:#94551e}
-@media(max-width:650px){.calendar-cloud-tools{justify-content:flex-start}.calendar-heading{flex-wrap:wrap}}
+/* Public demo mode: visible on every panel to prevent simulated-data confusion. */
+.demo-mode-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 19px;padding:12px 15px;border:1px solid #e7d4a8;border-radius:11px;background:#fff9eb;color:#77551d;font-size:12px;line-height:1.5}
+.demo-mode-banner strong{white-space:nowrap;letter-spacing:.4px}
+.demo-mode-banner span{flex:1;min-width:175px}
+.demo-mode-banner a{color:#6b4c19;font-weight:700;text-decoration:underline}
+@media(max-width:700px){.demo-mode-banner{align-items:flex-start}}

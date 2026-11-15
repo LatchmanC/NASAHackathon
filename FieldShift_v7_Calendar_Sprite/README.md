@@ -1,46 +1,48 @@
-## Farm Calendar · TigerData account sync
+## One-click public Demo mode (safe sandbox)
 
-The **Farm Calendar** now saves manual planting/watering/harvest/inspection
-tasks to the existing account-isolated TigerData farm document. At login,
-signed-in users load their actual calendar through the new authenticated
-`GET /api/farm/calendar` endpoint. An empty calendar means the user has
-no saved tasks. A database failure shows a visible sync error instead of
-using old browser data and claiming it was saved.
+The login screen now includes a **Demo** button using a first-party form POST
+to `/auth/demo`; no username, password or Auth0 account is required.
+Production must explicitly enable `FIELDSHIFT_SAMPLE_ACCOUNT=1` while
+keeping `AUTH0_ENABLED=1`. The existing secure session cookie is retained,
+with a public `mode=sample` session. Verified Auth0-only database/device
+endpoints continue to reject demo users, and no TigerData records are read
+or written for the sample account.
 
-- **Automatic refresh:** When the farmer opens **My Farm**, returns to the
-  browser, or keeps My Farm visible, Cropaganda refreshes the calendar
-  (throttled to 30 seconds, with a 60-second visible-page polling interval).
-  It **only** fetches the calendar; it does not automatically overwrite farm
-  plans or locations. A **Refresh** button manually fetches the latest.
-- **Saving:** Adding and deleting tasks uses the existing account-authenticated
-  `POST /api/farm/calendar` and `DELETE /api/farm/calendar/{id}`
-  endpoints. Writes are serialized server-side. In-flight cloud reads cannot
-  overwrite newly saved/deleted tasks in the current browser.
-- **Old browser calendar migration:** An authenticated farmer's previously
-  stored browser calendar is imported into TigerData once if present and not
-  previously imported/skipped. Calendar-only import runs at sign-in, merges
-  tasks by their stable IDs without overwriting existing remote records,
-  and marks success locally **after the server confirms it**. Old browser
-  entries remain available as a backup; repeat import is prevented to avoid
-  restoring a previously deleted remote event. Farmers who had explicitly
-  skipped imports can still choose the existing Import earlier browser data
-  action under My Farm.
-- **Account isolation:** TigerData lookup keys derive from the authenticated
-  Auth0 account ID; Google Calendar synchronization is unaffected and remains
-  an independent user-approved integration. Sample mode remains browser-only.
-- **Derived planting markers:** Planting dates supplied in the saved farm
-  plan are displayed in the calendar alongside manual TigerData tasks, and
-  are not duplicated as independent manual tasks.
-- **Reliability:** The earlier full-farm automatic sync change remains
-  reverted. Only the farm-calendar GET/refresh/migration flow is added.
-  Browser failures retain the last displayed data and show an error.
+Every demo dashboard panel is clearly marked SIMULATED DEMO:
 
-Offline checks: `python -m unittest discover -s tests -p
-'test_calendar_tigerdata_api.py' -v` and `node --test
-tests/test_calendar_cloud_frontend.cjs`. These tests mock the database.
-A production authenticated account should verify one calendar add/delete,
-re-login, and cross-device retrieval after deployment. Never include
-`TIGERDATA_DATABASE_URL` in frontend code.
+- Example farm, crop plan and calendar tasks are stored only in the visitor's
+  browser, under an isolated sample account key.
+- Simulated live ESP32 values, history charts, dated archives, and NASA-like
+  regional climate samples populate the dashboard without requesting real
+  hardware observations or NASA measurements.
+- Soil & Rotation renders fictional soil characteristics (e.g., sandy loam,
+  pH 6.4), mock climate/terrain/CDL classifications, and the normal
+  educational crop reference guide. No USDA/USGS/NASA/PRISM services or
+  authenticated soil caches are queried for demo soil values. External map
+  embeds are disabled in the sample to avoid implying fictional values
+  are a real USDA survey.
+- Example weather forecasts and sample alerts are labelled synthetic;
+  no real forecast/alerts are queried in demo mode.
+- Google Calendar, SMS/Twilio and ESP32 pairing are disabled and explicitly
+  labelled because they require genuine account credentials or hardware.
+- **Fieldy:** Public demo does *not* use the paid Gemini API, even when
+  production's secret is configured, to avoid unrestricted third-party
+  consumption. The Fieldy panel reads **"Demo mode, key not available"**
+  and supplies scripted, question-aware sample replies with clear
+  source labels. Real Auth0 users retain normal Gemini-powered advice.
+
+Legacy public `test/test` demo credentials remain accepted as a compatibility
+path. Sample sessions do not contain an email or validated Auth0 subject and
+cannot access real user information. Exiting demo logs the sample session out
+without contacting Auth0.
+
+Deployment: this branch restores the last known working Fieldy/farm calendar
+frontend `941ace4` before adding the Demo feature; the previously rolled-back
+automatic TigerData calendar sync does not return to production.
+
+Validation:
+`python -m unittest discover -s tests -p 'test_public_demo.py' -v` and
+`python -m unittest discover -s tests -p 'test_sample_login.py' -v`.
 
 ---
 

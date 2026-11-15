@@ -20,13 +20,34 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
     except (ValueError,TypeError) as exc:raise HTTPException(400,str(exc))
     question=(req.question or '').strip() or 'Based on my farm, what should I prioritize?'
     if user.get('mode')=='sample':
+        # Scripted, context-aware demonstration. Public demo users never
+        # consume a server-side Gemini key or access real farm accounts.
+        topic=question.lower()
+        crops=', '.join(str(c.get('name','')) for c in (plan.get('crops') or [])
+                         if isinstance(c,dict) and c.get('name')) or 'example crops'
+        if any(x in topic for x in ('water','irrigat','dry','moist')):
+            answer=('On this **fictional demonstration farm**, the mock soil moisture is about '
+                    '**47%**. Consider checking soil moisture before irrigation, watching near-term '
+                    'conditions and adjusting by crop and soil texture. These are example values, '
+                    'not sensor measurements.')
+            metric={'label':'Example soil moisture','value':'47% (simulated)','source':'Fictional demo sensor'}
+        elif any(x in topic for x in ('soil','drain','ph','texture','rotation')):
+            answer=('This demo uses a made-up **sandy loam** soil with **pH 6.4** and '
+                    '**well-drained** conditions. The Soil & Rotation tab shows how you can '
+                    'compare crop requirements with published soil context. On a real farm, '
+                    'confirm drainage and pH with relevant soil maps and laboratory tests.')
+            metric={'label':'Example pH','value':'6.4 (simulated)','source':'Fictional Soil & Rotation profile'}
+        else:
+            answer=('Welcome to the **Cropaganda demo**. Your example farm grows '+crops+
+                    '. Ask about irrigation, drainage, crop rotation or planting windows '
+                    'to see how Fieldy structures suggestions. All displayed conditions '
+                    'are **simulated**, and this is scripted sample advice, not a Gemini response.')
+            metric={'label':'Example crops','value':crops[:145],'source':'Fictional demo farm plan'}
         return {'advice_structured':{
-          'answer':('This is the public sample farm, so this answer is only a demonstration, not a Gemini response. '
-                    'You asked: '+question+'\n\nCreate an Auth0 account and verify your email for real Fieldy answers '
-                    'using your own farm and available sensor/weather data.'),
-          'assumptions':['The public sample account has fictional crop and sensor data.'],
-          'source_notes':['No paid Gemini request was made.'],
-          'highlights':[]},
+          'answer':answer+'\n\nFor real, Gemini-powered advice, sign in with a verified Auth0 account.',
+          'assumptions':['All farm conditions, sensor readings, and soil characteristics are synthetic.'],
+          'source_notes':['SIMULATED DEMO — no real provider data or paid Gemini request.'],
+          'highlights':[metric] if plan.get('crops') else []},
           'provider':'demo','model':'sample-advice'}
     if user.get('mode')!='auth0' or not user.get('sub') or not user.get('email'):
         raise HTTPException(403,'Verified Auth0 login required')

@@ -200,9 +200,14 @@ def _safe_fetch(name, fn, lat, lon):
                 "message": "Provider unavailable. No default or synthetic numbers substituted."}
 
 
+from demo_data import sample_session, soil_context as synthetic_soil_context
+
 def install_soil_context_routes(app):
     @app.get("/api/soil/context")
     def soil_context(request: Request, latitude: float, longitude: float, refresh: bool = False):
+        if sample_session(request):
+            lat, lon = _coords(latitude, longitude)
+            return synthetic_soil_context(lat, lon)
         owner = _owner(request)
         lat, lon = _coords(latitude, longitude)
         if not (24 <= lat <= 50 and -125 <= lon <= -66):

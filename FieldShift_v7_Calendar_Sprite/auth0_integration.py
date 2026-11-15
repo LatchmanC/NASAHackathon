@@ -1,8 +1,8 @@
-"""Cropaganda identity boundary: Auth0 for real users, isolated public sample account.
+"""Cropaganda identity boundary: Auth0 for real users, isolated public demo.
 
-The test/test credentials are deliberately PUBLIC DEMO CREDENTIALS, not an
-Auth0 password and never grant the right to call Gemini or read real farm data.
-Private data endpoints require a verified Auth0 session. Public signup is optional; Gemini is available to verified Auth0 accounts.
+The public demo is NOT a privileged Auth0 account. It never grants access to
+real farm data or the paid Gemini API. Real farmer endpoints verify Auth0
+independently; sample content is simulated and clearly labelled.
 """
 from __future__ import annotations
 import hmac
@@ -103,10 +103,20 @@ def install_auth(app: FastAPI):
         form=parse_qs(body.decode('utf-8','replace'),keep_blank_values=True)
         username=form.get('username',[''])[0]
         password=form.get('password',[''])[0]
-        if not (hmac.compare_digest(username,'test') and hmac.compare_digest(password,'test')):
+        # One-click demo form is explicitly supported. Previous public
+        # test/test demo credentials still work for backwards compatibility.
+        one_click=hmac.compare_digest(form.get('demo',[''])[0],'1')
+        old_demo=(hmac.compare_digest(username,'test') and hmac.compare_digest(password,'test'))
+        fetch_site=request.headers.get('sec-fetch-site','')
+        referrer=request.headers.get('referer','')
+        if fetch_site and fetch_site not in ('same-origin','none'):
+            return JSONResponse({'detail':'Demo sign-in must originate from Cropaganda'},status_code=403)
+        if referrer and not referrer.startswith(conf['base']+'/'):
+            return JSONResponse({'detail':'Origin mismatch'},status_code=403)
+        if not (one_click or old_demo):
             return RedirectResponse('/?error=invalid',status_code=303)
         request.session.clear()
-        request.session['user']={'sub':'sample:test','name':'Test Farmer','mode':'sample'}
+        request.session['user']={'sub':'sample:test','name':'Demo Farmer','mode':'sample'}
         return RedirectResponse('/dashboard.html',status_code=303)
 
     @app.get('/auth/login')

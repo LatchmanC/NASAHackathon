@@ -38,6 +38,22 @@ class SampleLoginTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/private',headers={'X-FieldShift-Request':'1'}).status_code,200)
         self.assertEqual(self.client.get('/auth/logout').status_code,303)
         self.assertEqual(self.client.get('/api/private').status_code,401)
+    def test_demo_button_signs_in_without_credentials(self):
+        r=self.client.post('/auth/demo',data={'demo':'1'})
+        self.assertEqual(r.status_code,303)
+        self.assertEqual(r.headers['location'],'/dashboard.html')
+        profile=self.client.get('/api/auth/me').json()
+        self.assertEqual(profile['user']['mode'],'sample')
+        self.assertEqual(profile['user']['name'],'Demo Farmer')
+        self.assertNotIn('email',profile['user'])
+
+    def test_cross_site_demo_form_rejected(self):
+        r=self.client.post('/auth/demo',data={'demo':'1'},
+                           headers={'origin':'https://evil.example',
+                                    'sec-fetch-site':'cross-site'})
+        self.assertEqual(r.status_code,403)
+        self.assertFalse(self.client.get('/api/auth/me').json()['authenticated'])
+
     def test_bad_password_rejected(self):
         self.assertEqual(self.client.post('/auth/demo',data={'username':'test','password':'wrong'}).headers['location'],'/?error=invalid')
         self.assertEqual(self.client.get('/api/private').status_code,401)

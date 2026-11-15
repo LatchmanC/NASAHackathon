@@ -9,6 +9,7 @@ from sensor_store import read_shared_link
 from fieldshift_core import valid_lat_lon
 from intelligence import fetch_nasa_daily
 import tigerdata_store as tiger
+from demo_data import sample_session, archive_dates, archive_snapshots, archive_reading
 
 class NasaSyncRequest(BaseModel):
     location:dict=Field(default_factory=dict)
@@ -29,6 +30,10 @@ def selected_account(request,view):
 def install_history_routes(app):
     @app.get('/api/history/status')
     def status(request:Request):
+        if sample_session(request):
+            return {"configured":True,"demo":True,"archive_interval_minutes":10,
+                    "date_basis":"UTC","live_mode":"SIMULATED archived readings",
+                    "note":"SIMULATED DEMO only — no TigerData or ESP32 data accessed."}
         _owner(request)
         return {'configured':tiger.enabled(),
                 'archive_interval_minutes':10,'date_basis':'America/New_York',
@@ -38,6 +43,9 @@ def install_history_routes(app):
 
     @app.get('/api/history/dates')
     def available_dates(request:Request,view:str='auto'):
+        if sample_session(request):
+            return {"dates":archive_dates(),"demo":True,
+                    "sensor_access":"demo","date_basis":"UTC"}
         if not tiger.enabled():
             raise HTTPException(503,'TigerData is not connected')
         account,access=selected_account(request,view)
@@ -45,6 +53,10 @@ def install_history_routes(app):
 
     @app.get('/api/history/days')
     def days(request:Request,year:int,month:int,view:str='auto'):
+        if sample_session(request):
+            rows=[{"date":x,"count":2} for x in archive_dates()
+                  if x.startswith(f"{year:04d}-{month:02d}")]
+            return {"days":rows,"demo":True,"sensor_access":"demo","date_basis":"UTC"}
         if not tiger.enabled():
             raise HTTPException(503,'TigerData is not connected')
         account,access=selected_account(request,view)
@@ -53,6 +65,11 @@ def install_history_routes(app):
 
     @app.get('/api/history/snapshots')
     def snapshots(request:Request,day:str,view:str='auto'):
+        if sample_session(request):
+            try:rows=archive_snapshots(day)
+            except ValueError as exc:raise HTTPException(400,"Invalid date") from exc
+            return {"snapshots":rows,"day":day,"demo":True,
+                    "sensor_access":"demo","date_basis":"UTC"}
         if not tiger.enabled():
             raise HTTPException(503,'TigerData is not connected')
         account,access=selected_account(request,view)
@@ -61,6 +78,14 @@ def install_history_routes(app):
 
     @app.get('/api/history/entry')
     def entry(request:Request,day:str,bucket:str,latitude:float,longitude:float,view:str='auto'):
+        if sample_session(request):
+            try: sensor=archive_reading(day,bucket)
+            except ValueError as exc:raise HTTPException(400,"Invalid date") from exc
+            if not sensor:raise HTTPException(404,"No demo reading for this timestamp")
+            return {"day":day,"bucket_at":bucket,"sensor":sensor,"nasa":None,
+                    "sensor_access":"demo","demo":True,
+                    "nasa_source":"SIMULATED DEMO — no real NASA data",
+                    "date_basis":"UTC"}
         if not tiger.enabled():
             raise HTTPException(503,'TigerData is not connected')
         try:lat,lon=valid_lat_lon(latitude,longitude)
@@ -77,6 +102,8 @@ def install_history_routes(app):
 
     @app.post('/api/history/sync-nasa')
     def sync_nasa(request:Request,req:NasaSyncRequest):
+        if sample_session(request):
+            raise HTTPException(403,"Demo cannot write to real farm data")
         if not tiger.enabled():
             raise HTTPException(503,'TigerData is not connected')
         # A viewer cannot write records into somebody else's farm.
