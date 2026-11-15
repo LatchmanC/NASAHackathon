@@ -153,14 +153,23 @@ def plan_validate(payload:dict):
 @app.get('/api/calendar')
 def calendar(): return {'events':[],'storage':'browser only'}
 
+def gemini_approved(user:dict)->bool:
+    # New public signups do not automatically unlock unlimited paid Gemini calls.
+    allow={x.strip().casefold() for x in os.getenv('AUTH0_ALLOWED_EMAILS','').split(',') if x.strip()}
+    return user.get('mode')=='auth0' and str(user.get('email','')).casefold() in allow
+
 @app.get('/api/gemini/status')
 def gemini_status(request:Request):
     available=bool(os.environ.get('GEMINI_API_KEY','').strip())
     user=request.session.get('user',{}) if 'session' in request.scope else {}
     sample=user.get('mode')=='sample'
-    return {'configured':bool(sample or (available and user.get('mode')=='auth0')),
-            'model':DEFAULT_GEMINI_MODEL,'mode':'sample' if sample else 'live' if available and user.get('mode')=='auth0' else 'unavailable',
-            'note':'Sample advice is a fixed demonstration, not Gemini.' if sample else 'Real Gemini advice requires an approved Auth0 login.'}
+    approved=gemini_approved(user)
+    starter=sample or (user.get('mode')=='auth0' and not approved)
+    return {'configured':bool(starter or (available and approved)),
+            'model':DEFAULT_GEMINI_MODEL,'mode':'sample' if starter else 'live' if available and approved else 'unavailable',
+            'note':('Fixed sample guidance, without a Gemini API call.' if sample else
+                    'Starter Fieldy guidance; Gemini unlocks with account approval.' if starter else
+                    'Gemini is enabled for this account.' if available and approved else 'Gemini is unavailable.')}
 
 class AdviceRequest(BaseModel):
     plan:dict
@@ -174,13 +183,13 @@ class AdviceRequest(BaseModel):
 @app.post('/api/plan/advice')
 def farming_advice(req:AdviceRequest,request:Request):
     user=request.session.get('user',{}) if 'session' in request.scope else {}
-    if user.get('mode')=='sample':
+    if user.get('mode')=='sample' or (user.get('mode')=='auth0' and not gemini_approved(user)):
         p=validate_plan(req.plan)
         crops=[{'name':x['name'],'next_step':'Check crop condition and add a planting date or variety for a better timeline.','timing':'Planning example'} for x in p['crops']]
-        return {'advice_structured':{'headline':'Review your sample crop plans before your next field visit.',
+        return {'advice_structured':{'headline':'Review your crop plans before your next field visit.',
            'actions':[{'title':'Check drainage','detail':'Inspect low areas before watering.'},{'title':'Add planting dates','detail':'Enter dates and varieties to improve the growing timeline.'}],
            'crops':crops,'weather_watch':'Download a live forecast in the NASA tab before making decisions.',
-           'data_note':'Example guidance only; sensor readings are fictional and no Gemini call was made.'},
+           'data_note':('Demo sensors are fictional; no Gemini call was made.' if user.get('mode')=='sample' else 'Starter guidance only; ESP32 is not connected and Gemini is awaiting account approval.')},
            'created_at':datetime.now(timezone.utc).isoformat(),'model':'sample-advice','data_mode':'synthetic','provider':'demo'}
     # Paid model calls are restricted to approved Auth0 accounts only.
     if user.get('mode')!='auth0': raise HTTPException(403,'An approved Auth0 login is required to use Gemini.')

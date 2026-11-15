@@ -2,7 +2,7 @@
 
 The test/test credentials are deliberately PUBLIC DEMO CREDENTIALS, not an
 Auth0 password and never grant the right to call Gemini or read real farm data.
-All real-user data endpoints require a verified Auth0 session and allowlist.
+All real-user data endpoints require a verified Auth0 session. Public signup is optional and Gemini access is separately allowlisted.
 """
 from __future__ import annotations
 import hmac
@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 def settings():
     enabled = os.getenv('AUTH0_ENABLED','0') == '1'
     sample = os.getenv('FIELDSHIFT_SAMPLE_ACCOUNT','0') == '1'
+    signup = enabled and os.getenv('AUTH0_ALLOW_SIGNUPS','0') == '1'
     demo = os.getenv('FIELDSHIFT_DEMO','1') == '1'
     base = os.getenv('APP_BASE_URL','http://127.0.0.1:8501').rstrip('/')
     if not enabled and not demo:
@@ -38,7 +39,7 @@ def settings():
         raise RuntimeError('APP_BASE_URL must be an HTTPS origin')
     return {'enabled':enabled,'sample_enabled':sample,'demo':demo,'base':base,'domain':domain,
             'client_id':client_id,'client_secret':client_secret,'session_secret':secret,
-            'allowed':allowed,'https_only':parsed.scheme=='https'}
+            'allowed':allowed,'signup_enabled':signup,'https_only':parsed.scheme=='https'}
 
 
 def install_auth(app: FastAPI):
@@ -56,7 +57,7 @@ def install_auth(app: FastAPI):
         path=request.url.path
         # The Vercel public/ folder is served separately. ALL private APIs must
         # independently validate the signed session cookie.
-        public=path.startswith('/static/') or path in ('/','/api/health','/api/auth/me','/auth/login','/auth/callback','/auth/logout','/auth/demo')
+        public=path.startswith('/static/') or path in ('/','/api/health','/api/auth/me','/auth/login','/auth/callback','/auth/logout','/auth/demo','/auth/signup')
         if not conf['enabled'] and not conf['sample_enabled']:
             return await call_next(request)
         user=request.session.get('user')
@@ -76,10 +77,11 @@ def install_auth(app: FastAPI):
     async def me(request:Request):
         user=request.session.get('user') if (conf['enabled'] or conf['sample_enabled']) else None
         if not isinstance(user,dict) or not user.get('sub'):
-            return {'auth_enabled':conf['enabled'],'authenticated':False,'sample_available':conf['sample_enabled']}
+            return {'auth_enabled':conf['enabled'],'authenticated':False,'sample_available':conf['sample_enabled'],'signup_available':conf['signup_enabled']}
         safe={k:v for k,v in user.items() if k in ('sub','name','email','mode')}
         return {'auth_enabled':conf['enabled'],'authenticated':True,'user':safe,
-                'scope':'sample_only' if user.get('mode')=='sample' else 'authorized_browser_profile'}
+                'signup_available':conf['signup_enabled'],
+                'scope':'sample_only' if user.get('mode')=='sample' else 'verified_auth0_profile'}
 
     @app.post('/auth/demo')
     async def demo_login(request:Request):
@@ -114,6 +116,17 @@ def install_auth(app: FastAPI):
         args={'audience':os.environ['AUTH0_AUDIENCE']} if os.getenv('AUTH0_AUDIENCE') else {}
         return await oauth.auth0.authorize_redirect(request,f"{conf['base']}/auth/callback",**args)
 
+    @app.get('/auth/signup')
+    async def signup(request:Request):
+        # Auth0 Universal Login handles registration and stores passwords.
+        if not conf['signup_enabled']:
+            return RedirectResponse('/?error=signup_unavailable',status_code=303)
+        request.session.clear()
+        args={'screen_hint':'signup','prompt':'login'}
+        if os.getenv('AUTH0_AUDIENCE'):
+            args['audience']=os.environ['AUTH0_AUDIENCE']
+        return await oauth.auth0.authorize_redirect(request,f"{conf['base']}/auth/callback",**args)
+
     @app.get('/auth/callback')
     async def callback(request:Request):
         if not conf['enabled']:
@@ -125,9 +138,12 @@ def install_auth(app: FastAPI):
             request.session.clear()
             return HTMLResponse('<h2>Sign-in could not be completed.</h2><p>Check the Auth0 callback configuration, then <a href="/">try again</a>.</p>',status_code=400)
         email=str(claims.get('email','')).strip().casefold()
-        if not email or claims.get('email_verified') is not True or email not in conf['allowed'] or not claims.get('sub'):
+        if not email or claims.get('email_verified') is not True or not claims.get('sub'):
             request.session.clear()
-            return HTMLResponse('<h2>Account approval required</h2><p>This verified email has not been added to the FieldShift approved-user list. <a href="/">Return to login</a>.</p>',status_code=403)
+            return HTMLResponse('<h2>Verify your email address</h2><p>Please verify your email through Auth0, then <a href="/auth/login">sign in again</a>.</p>',status_code=403)
+        if not conf['signup_enabled'] and email not in conf['allowed']:
+            request.session.clear()
+            return HTMLResponse('<h2>Account approval required</h2><p>This account is not currently authorized for FieldShift. <a href="/">Return to login</a>.</p>',status_code=403)
         request.session.clear()
         request.session['user']={'sub':str(claims['sub'])[:200], 'email':email,
                                  'name':str(claims.get('name') or email)[:100], 'mode':'auth0'}

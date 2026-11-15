@@ -4,7 +4,7 @@
 
 - The public home page is a login screen. Real users use Auth0 Universal Login; the temporary **test / test** credentials open a **fictional sample-only** profile using a signed server-side cookie. This is a demonstration, not a secure password.
 - Sample account: crop plan, editable calendar, fictional sensor metrics clearly marked synthetic, live NASA POWER historical downloads, live Open-Meteo forecasts and official NWS alerts where supported. Fieldy displays **sample advice only** in this account and makes **no Gemini API call**, so the public test credentials cannot incur AI charges.
-- Approved Auth0 users: real Gemini calls are server-side; crop plans/calendar use per-browser storage until TigerData exists. User verification is restricted by `AUTH0_ALLOWED_EMAILS` in the Auth0 callback. Do not use browser storage for sensitive farm details.
+- Auth0 users: self-registration uses Auth0 Universal Login. Newly registered users verify their email, then access the dashboard; crop plans/calendar use per-browser storage until TigerData exists. The `AUTH0_ALLOWED_EMAILS` list restricts paid Gemini calls, not account creation; other verified accounts receive starter Fieldy guidance. Do not use browser storage for sensitive farm details.
 - ESP32 device upload and TigerData have **not been implemented**. Sensor data outside the sample account is honestly shown as disconnected.
 - All `/api/*` endpoints except health and auth-status require a signed session when `AUTH0_ENABLED=1`.
 
@@ -12,6 +12,7 @@
 
 ```
 AUTH0_ENABLED=1
+AUTH0_ALLOW_SIGNUPS=1
 FIELDSHIFT_DEMO=0
 FIELDSHIFT_SAMPLE_ACCOUNT=1
 APP_BASE_URL=https://cropaganda.garden
@@ -23,9 +24,10 @@ GEMINI_API_KEY=your-private-key
 AUTH0_ALLOWED_EMAILS=approved-account@example.com
 ```
 
-The `AUTH0_ALLOWED_EMAILS` list may initially be empty; production starts with the sample account and the Auth0 sign-in link available, but real Auth0 sign-ins are denied until approved email addresses are added. Verify Auth0's email_verified claim. Never commit .env files or keys.
+With `AUTH0_ALLOW_SIGNUPS=1`, newly registered Auth0 accounts with verified emails can enter the dashboard even when the allowlist is empty. `AUTH0_ALLOWED_EMAILS` now controls paid Gemini calls. Other verified users get starter Fieldy advice without paid API calls. Enable signups for the FieldShift application in the Auth0 database connection and configure email verification. With signup disabled, only allowlisted verified accounts can sign in. Never commit .env files or keys.
 
 Set Auth0 Regular Web Application URLs:
+- Signup: `https://cropaganda.garden/auth/signup` (Auth0 hosted sign-up)
 - Callback: `https://cropaganda.garden/auth/callback`
 - Logout: `https://cropaganda.garden/`
 - Web Origin: `https://cropaganda.garden`
@@ -112,6 +114,7 @@ In Vercel **server-side environment variables** (all deployments where needed), 
 
 ```dotenv
 AUTH0_ENABLED=1
+AUTH0_ALLOW_SIGNUPS=1
 FIELDSHIFT_DEMO=0
 APP_BASE_URL=https://YOUR-PROJECT.vercel.app
 AUTH0_DOMAIN=YOUR-TENANT.us.auth0.com

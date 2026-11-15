@@ -34,8 +34,8 @@ class HostedPreviewTests(unittest.TestCase):
         fake={'headline':'Check the forecast before planting','actions':[{'title':'Inspect soil','detail':'Check drainage before starting.'}], 'crops':[{'name':'Corn','next_step':'Pick a suitable variety','timing':'Date not known'}], 'weather_watch':'Rain forecast is unavailable.','data_note':'No live sensors connected.'}
         body={'plan':{'total_area':5,'area_unit':'acres','crops':[{'name':'Corn','area':2}]},'location':{'latitude':40,'longitude':-73},'question':'Help with corn'}
         # Mock only the provider functions. Real authentication enforcement is tested in v8.
-        with patch.dict(os.environ,{'AUTH0_ENABLED':'1','GEMINI_API_KEY':'test-not-real'}),patch.object(server,'forecast',return_value=[]),patch.object(server,'generate_gemini_reply',return_value=json.dumps(fake)) as generate:
-            request=SimpleNamespace(scope={'session':{}},session={'user':{'mode':'auth0'}})
+        with patch.dict(os.environ,{'AUTH0_ENABLED':'1','GEMINI_API_KEY':'test-not-real','AUTH0_ALLOWED_EMAILS':'approved@example.com'}),patch.object(server,'forecast',return_value=[]),patch.object(server,'generate_gemini_reply',return_value=json.dumps(fake)) as generate:
+            request=SimpleNamespace(scope={'session':{}},session={'user':{'mode':'auth0','email':'approved@example.com'}})
             result=server.farming_advice(server.AdviceRequest(**body),request)
             self.assertEqual(result['advice_structured']['headline'],fake['headline'])
             self.assertEqual(result['advice_structured']['crops'][0]['name'],'Corn')
