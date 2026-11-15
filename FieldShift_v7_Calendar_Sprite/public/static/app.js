@@ -63,7 +63,7 @@ function browserImportCandidates(){
     const value=legacyValue(key);
     if(value===null||value===undefined)continue;
     if((key==='calendar'||key==='rotation_scenarios')&&(!Array.isArray(value)||!value.length))continue;
-    if(key==='location'&&/^(Demo|Test Farm)\\b/i.test(value.label||''))continue;
+    if(key==='location'&&/^(Demo|Test Farm)\b/i.test(value.label||''))continue;
     choices[key]=value;
   }
   return choices;
