@@ -1,4 +1,4 @@
-"""Shared Gemini client settings for Cropoganda.
+"""Shared Gemini client settings for Cropaganda.
 
 Uses the same Google GenAI SDK, model family, and timeout pattern as the
 standalone connection test. The key is never written to a file by this module.

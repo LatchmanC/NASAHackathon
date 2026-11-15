@@ -1,4 +1,4 @@
-"""Cropoganda History endpoints: recorded ESP32 snapshots and NASA POWER daily.
+"""Cropaganda History endpoints: recorded ESP32 snapshots and NASA POWER daily.
 All requests require verified Auth0 sessions; shared viewers have read-only scope.
 """
 from __future__ import annotations

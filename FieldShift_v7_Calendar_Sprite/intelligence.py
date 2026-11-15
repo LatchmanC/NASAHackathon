@@ -1,4 +1,4 @@
-"""Cropoganda v3: source-tagged NASA series, official alerts, charts and cautious farm advice.
+"""Cropaganda v3: source-tagged NASA series, official alerts, charts and cautious farm advice.
 
 NASA observations are REGIONAL, often delayed, and are not a weather forecast.
 Synthetic series/alerts are always explicitly tagged demo.
@@ -175,7 +175,7 @@ def official_alerts(location):
     """US NWS active alert point API; a failed check is never interpreted as 'no warnings'."""
     lat,lon=location['latitude'],location['longitude']
     url='https://api.weather.gov/alerts/active?'+urlencode({'point':f'{lat:.5f},{lon:.5f}'})
-    headers={'User-Agent':os.getenv('FIELDSHIFT_NWS_USER_AGENT', 'CropogandaLocalPrototype/0.3 (educational demo)'),
+    headers={'User-Agent':os.getenv('FIELDSHIFT_NWS_USER_AGENT', 'CropagandaLocalPrototype/0.3 (educational demo)'),
              'Accept':'application/geo+json'}
     try:
         payload=http_json('GET',url,headers=headers,timeout=18)
@@ -257,7 +257,7 @@ def gemini_farm_advice(readings,nasa_daily,alerts,location,crop,stage,api_key,mo
           'fetched_at':(alerts or {}).get('fetched_at'),
           'alerts':[{k:a.get(k) for k in ('event','severity','instruction','expires')} for a in (alerts or {}).get('alerts',[])[:5]]},
        'farmer_question':question[:800]}
-    prompt='''You are Cropoganda, a cautious agriculture decision-support assistant. User JSON follows.
+    prompt='''You are Cropaganda, a cautious agriculture decision-support assistant. User JSON follows.
 Give: 1) Observed local conditions; 2) Regional NASA historical context; 3) Weather alert status (only those explicitly provided); 4) Up to 3 conditional crop management recommendations with why; 5) Uncertainties and missing data.
 Rules: Distinguish observed data from synthetic testing fixtures. Never claim demo NASA data is real. Never invent official weather alerts, future storm timings, precipitation probabilities or guaranteed crop outcomes. NASA historical data is NOT a short-term forecast. If alert status is unchecked/unavailable, say official warning status UNKNOWN and refer user to authoritative alerts. A wet rain plate is not mm of rainfall; LDR % is not solar MJ/m²; cheap gas index is not a calibrated gas concentration; cheap soil moisture index is not the same as regional modeled soil wetness. Sea-level-altitude estimate isn't independent data. No instruction to bypass evacuation/official warnings. If no forecast feed is present, do not make a deterministic weather prediction. If evidence is insufficient for a crop-specific recommendation, explicitly say what needs checking.
 USER DATA:\n'''+json.dumps(payload,ensure_ascii=False)

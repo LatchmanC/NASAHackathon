@@ -1,4 +1,4 @@
-"""Google Calendar linking for Cropoganda.
+"""Google Calendar linking for Cropaganda.
 Auth0 signs in the farmer; Google OAuth separately grants event creation.
 Refresh tokens are encrypted at rest and never returned to the browser.
 """
@@ -157,7 +157,7 @@ def install_google_calendar_routes(app):
         uid=hashlib.sha256((owner+':'+event.request_id).encode()).hexdigest()
         event_id='c'+uid[:40]
         payload={'id':event_id,'summary':summary,
-                 'description':('Cropoganda farm calendar'+(' — '+event.note if event.note else '')),
+                 'description':('Cropaganda farm calendar'+(' — '+event.note if event.note else '')),
                  'start':{'date':event.date},'end':{'date':nextday}}
         try:
             r=httpx.post('https://www.googleapis.com/calendar/v3/calendars/primary/events',

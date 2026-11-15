@@ -1,4 +1,4 @@
-/* Cropoganda overview and navigation. Preserve existing app.js APIs and browser storage.
+/* Cropaganda overview and navigation. Preserve existing app.js APIs and browser storage.
    No simulated weather, sensor, or market values are displayed here. */
 'use strict';
 

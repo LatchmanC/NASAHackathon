@@ -1,8 +1,8 @@
-## Cropoganda — Google Calendar and automatic NASA POWER archive (November 2026)
+## Cropaganda — Google Calendar and automatic NASA POWER archive (November 2026)
 
 ### Fieldy → Farm Calendar → Google Calendar
 
-The Cropoganda dashboard now accepts **calendar action proposals** in Fieldy answers.
+The Cropaganda dashboard now accepts **calendar action proposals** in Fieldy answers.
 Example: "I want to plant strawberries tomorrow." Fieldy may propose a
 **Plant strawberries** task for tomorrow (the visitor's local calendar date).
 The user must explicitly confirm **Yes, add to both calendars**, or type
@@ -13,10 +13,10 @@ events if a confirmation is retried. The farm-calendar side currently saves task
 Google Calendar**. This is one-way, confirmed event creation, not bidirectional
 calendar synchronization or synchronization of all manually added farm tasks.
 
-To enable Google Calendar linking, the Cropoganda project owner must:
+To enable Google Calendar linking, the Cropaganda project owner must:
 
 1. Open Google Cloud Console. Enable the **Google Calendar API**.
-2. Configure the **Google Auth Platform / OAuth consent screen** for Cropoganda.
+2. Configure the **Google Auth Platform / OAuth consent screen** for Cropaganda.
    Add test users during development, or complete any Google verification needed
    before general public use of the sensitive Calendar events scope.
 3. Create an **OAuth 2.0 Client ID** of type **Web application**.
@@ -27,7 +27,7 @@ To enable Google Calendar linking, the Cropoganda project owner must:
    as Production encrypted secrets; do not commit these values.
    `GOOGLE_TOKEN_ENCRYPTION_KEY` is an independent Fernet key already provisioned
    in Production; **never change it without migrating existing encrypted tokens**.
-5. Redeploy. Sign in to Cropoganda through Auth0, select **Connect Google
+5. Redeploy. Sign in to Cropaganda through Auth0, select **Connect Google
    Calendar**, grant the `calendar.events` permission, and ask Fieldy to add a task.
 
 Google refresh tokens are encrypted in the account-specific
@@ -46,7 +46,7 @@ provisioned to Production. The handler refuses any request without that bearer
 secret. Only **actual NASA POWER historical daily data** is stored; no synthetic
 weather rows are generated.
 
-When a farmer explicitly selects/saves the farm location, Cropoganda stores its
+When a farmer explicitly selects/saves the farm location, Cropaganda stores its
 coordinates in TigerData's `cropoganda_farm_locations` table, created if missing.
 When they return, an already selected, non-demo location is registered as well.
 The daily cron refreshes the most recent 15 days for at most eight registered
@@ -66,7 +66,7 @@ and historical browsing features.
 
 ---
 
-# Cropoganda — TigerData live monitoring and historical archive
+# Cropaganda — TigerData live monitoring and historical archive
 
 **Website:** https://cropaganda.garden
 
@@ -84,7 +84,7 @@ and historical browsing features.
 
 1. Create a TigerData service; copy its **PostgreSQL connection string** with TLS enabled.
 2. In the TigerData SQL editor, execute the complete migration file `sql/cropoganda_tigerdata.sql`. This creates four tables and indexes. Do not run unreviewed SQL that drops existing tables.
-3. In Vercel **Cropoganda's existing project** (still internally named `nasa-hackathon`), add a **Production encrypted variable**: `TIGERDATA_DATABASE_URL` = the full connection string. Keep it out of GitHub and firmware.
+3. In Vercel **Cropaganda's existing project** (still internally named `nasa-hackathon`), add a **Production encrypted variable**: `TIGERDATA_DATABASE_URL` = the full connection string. Keep it out of GitHub and firmware.
 4. Redeploy, then check `https://cropaganda.garden/api/health` for `"tigerdata_configured":true`.
 5. Reflash the ESP32 with an upload interval of e.g. **5,000 ms** (only after the DB schema and connection have been verified). TigerData allows a minimum accepted interval of 2 s by default. Set `CROPOGANDA_MIN_SENSOR_SECONDS` in Vercel if another minimum is required. Existing upload tokens do not change.
 6. Open NASA POWER Daily and select **Download latest NASA data** to save available daily regional observations to TigerData. Visit the **History** tab to browse archived timestamps.
@@ -93,12 +93,12 @@ and historical browsing features.
 
 ## Auth0 hosted login wording
 
-Website text is already rebranded **Cropoganda**, but Auth0 Universal Login is a separate hosted service. In Auth0 Dashboard set **Settings → General → Friendly Name** to `Cropoganda`; then rename the linked **Applications → Applications** client to `Cropoganda`. To make the description exactly **Log in to Cropoganda**, under **Branding → Universal Login → Advanced Options → Custom Text**, select the Login prompt and enter `Log in to Cropoganda`. Do not rename the Auth0 tenant's technical hostname or rotate the client ID.
+Website text is already rebranded **Cropaganda**, but Auth0 Universal Login is a separate hosted service. In Auth0 Dashboard set **Settings → General → Friendly Name** to `Cropaganda`; then rename the linked **Applications → Applications** client to `Cropaganda`. To make the description exactly **Log in to Cropaganda**, under **Branding → Universal Login → Advanced Options → Custom Text**, select the Login prompt and enter `Log in to Cropaganda`. Do not rename the Auth0 tenant's technical hostname or rotate the client ID.
 
 ## Compatibility retained
 
 - `FIELDSHIFT_*` environment variable names, `fieldshift_session` cookie, `fieldshift_v9` browser storage prefix, `X-FieldShift-Request` CSRF header, and `fieldshift-*-token-v1` cryptographic salts intentionally retain their existing values, to preserve logins, crop/calendar state, and ESP32 upload and sharing tokens.
-- Site address `cropaganda.garden` is **unchanged** (its spelling differs from the Cropoganda product name).
+- Site address `cropaganda.garden` is **unchanged** and matches the Cropaganda product name.
 
 ---
 
@@ -118,7 +118,7 @@ The public `test / test` sample login has been retired. The login page offers on
 
 ---
 
-## Cropoganda v14 — Direct Gemini answers and ESP32 cloud ingestion
+## Cropaganda v14 — Direct Gemini answers and ESP32 cloud ingestion
 
 **Production:** https://cropaganda.garden
 
@@ -177,7 +177,7 @@ Every registered user who has **verified their email** and signed in using Auth0
 
 ---
 
-# Cropoganda v11 — Production login + sample profile
+# Cropaganda v11 — Production login + sample profile
 
 **Live production**: https://cropaganda.garden
 
@@ -212,7 +212,7 @@ Set Auth0 Regular Web Application URLs:
 - Logout: `https://cropaganda.garden/`
 - Web Origin: `https://cropaganda.garden`
 
-If Auth0 requests fail, verify these values in Auth0. The separate Auth0 Management API credentials in Vercel are **not** required for user sign-in. Login passwords belong in Auth0, never in the Cropoganda backend. An Auth0 Audience is optional for this server-managed browser session.
+If Auth0 requests fail, verify these values in Auth0. The separate Auth0 Management API credentials in Vercel are **not** required for user sign-in. Login passwords belong in Auth0, never in the Cropaganda backend. An Auth0 Audience is optional for this server-managed browser session.
 
 ## Local run
 
@@ -227,7 +227,7 @@ For local testing, set `AUTH0_ENABLED=0`, `FIELDSHIFT_DEMO=1`, `FIELDSHIFT_SAMPL
 
 ## Live Auth0 setup for cropaganda.garden
 
-The Cropoganda Vercel site uses **https://cropaganda.garden** as its canonical host.
+The Cropaganda Vercel site uses **https://cropaganda.garden** as its canonical host.
 In your existing Auth0 **Regular Web Application**, set:
 
 | Auth0 setting | Value |
@@ -246,9 +246,9 @@ The app accepts `SESSION_SECRET` or existing `AUTH0_SECRET` (at least 32 charact
 
 ---
 
-# Cropoganda v9 — Vercel-ready Preview
+# Cropaganda v9 — Vercel-ready Preview
 
-This edition migrates the Cropoganda v8 three-tab dashboard to **stateless FastAPI** for Vercel's Python runtime. It keeps the original responsive layout and Fieldy mascot, but changes Fieldy's output to compact cards rather than raw technical essays.
+This edition migrates the Cropaganda v8 three-tab dashboard to **stateless FastAPI** for Vercel's Python runtime. It keeps the original responsive layout and Fieldy mascot, but changes Fieldy's output to compact cards rather than raw technical essays.
 
 ## What works in this preview
 

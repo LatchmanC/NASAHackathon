@@ -1,4 +1,4 @@
-"""Cropoganda identity boundary: Auth0 for real users, isolated public sample account.
+"""Cropaganda identity boundary: Auth0 for real users, isolated public sample account.
 
 The test/test credentials are deliberately PUBLIC DEMO CREDENTIALS, not an
 Auth0 password and never grant the right to call Gemini or read real farm data.
@@ -67,7 +67,7 @@ def install_auth(app: FastAPI):
             user=None
         if not public and (not isinstance(user,dict) or not user.get('sub')):
             if path.startswith('/api/'):
-                return JSONResponse({'detail':'Please sign in to Cropoganda.'},status_code=401)
+                return JSONResponse({'detail':'Please sign in to Cropaganda.'},status_code=401)
             return RedirectResponse('/',status_code=303)
         if path.startswith('/api/') and path not in ('/api/device/ingest','/api/device/validate','/api/twilio/sms') and request.method in ('POST','PUT','PATCH','DELETE'):
             if request.headers.get('X-FieldShift-Request')!='1':
@@ -147,7 +147,7 @@ def install_auth(app: FastAPI):
             return HTMLResponse('<h2>Verify your email address</h2><p>Please verify your email through Auth0, then <a href="/auth/login">sign in again</a>.</p>',status_code=403)
         if not conf['signup_enabled'] and email not in conf['allowed']:
             request.session.clear()
-            return HTMLResponse('<h2>Account approval required</h2><p>This account is not currently authorized for Cropoganda. <a href="/">Return to login</a>.</p>',status_code=403)
+            return HTMLResponse('<h2>Account approval required</h2><p>This account is not currently authorized for Cropaganda. <a href="/">Return to login</a>.</p>',status_code=403)
         request.session.clear()
         request.session['user']={'sub':str(claims['sub'])[:200], 'email':email,
                                  'name':str(claims.get('name') or email)[:100], 'mode':'auth0'}
