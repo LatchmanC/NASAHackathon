@@ -73,7 +73,7 @@ def _exchange(params):
 class AddEvent(BaseModel):
     confirmed:bool
     request_id:str=Field(min_length=12,max_length=100,pattern=r'^[A-Za-z0-9_-]+$')
-    date:str=Field(pattern=r'^\d{4}-\d{2}-\d{2})
+    date:str=Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
     kind:str=Field(pattern=r'^(planting|watering|harvest|fertilizing|inspection|other)$')
     crop:str=Field(default='',max_length=70)
     note:str=Field(default='',max_length=240)
