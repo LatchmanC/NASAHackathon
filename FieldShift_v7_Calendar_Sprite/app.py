@@ -215,7 +215,7 @@ def validate_plan(p):
 def plan_validate(payload:dict):
     try:p=validate_plan(payload)
     except ValueError as exc:raise HTTPException(400,str(exc))
-    return {'saved':False,'plan':p,'storage':'Browser-only in Vercel preview'}
+    return {'saved':False,'plan':p,'storage':'validation_only; signed-in clients save to TigerData using /api/farm/state/plan'}
 
 @app.get('/api/calendar')
 def calendar(): return {'events':[],'storage':'browser only'}
