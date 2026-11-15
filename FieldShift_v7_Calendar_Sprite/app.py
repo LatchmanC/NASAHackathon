@@ -271,3 +271,7 @@ install_farm_sync_routes(app)
 # Text messages (Twilio): alerts, reminders, STATUS and Fieldy by SMS. See sms.py / TWILIO_SETUP.md
 from sms import install_sms_routes
 install_sms_routes(app, generate_gemini_reply, DEFAULT_GEMINI_MODEL, forecast)
+
+# USDA NRCS point-soil survey and optional quality-screened NASA SMAP data.
+from soil_rotation_api import install_soil_rotation_routes
+install_soil_rotation_routes(app)

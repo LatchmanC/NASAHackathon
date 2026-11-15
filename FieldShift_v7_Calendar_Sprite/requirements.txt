@@ -17,3 +17,7 @@ psycopg[binary]>=3.2,<4
 
 # Encrypt OAuth refresh tokens for confirmed Google Calendar event creation
 cryptography>=44,<48
+
+# Optional NASA SMAP point sampling through a registered Google Earth Engine service account.
+# Imported only when EARTH_ENGINE_PROJECT and EARTH_ENGINE_SERVICE_ACCOUNT_JSON are set.
+earthengine-api>=1.5,<2

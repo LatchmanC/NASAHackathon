@@ -7,6 +7,7 @@
   <title>Cropaganda | Farm intelligence</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/home.css">
+  <link rel="stylesheet" href="/static/soil-rotation.css">
 </head>
 <body>
 <div class="shell">
@@ -18,6 +19,7 @@
       <div class="sidetitle">FARM OPERATIONS</div>
       <button class="navitem" data-tab="crops"><span class="navicon">❋</span>My Farm</button>
       <button class="navitem" data-tab="calendar"><span class="navicon">▦</span>Farm Calendar</button>
+      <button class="navitem" data-tab="soil"><span class="navicon">🌾</span>Soil &amp; Rotation</button>
       <button class="navitem" data-tab="fieldy"><span class="navicon">✦</span>Fieldy AI</button>
       <div class="sidetitle">DATA &amp; INSIGHTS</div>
       <button class="navitem" data-tab="live"><span class="navicon">◉</span>Field Sensors</button>
@@ -189,6 +191,95 @@
           <p class="footnote" id="sms-status">Checking text message setup…</p>
         </section>
       </section>
+      <section class="panel-tab hidden" id="tab-soil" aria-label="Soil and crop rotation guide">
+        <div class="heading-row soil-head">
+          <div><div class="eyebrow">USDA SOIL SURVEY + NASA SMAP</div><h1>Soil &amp; Crop Rotation</h1>
+          <p class="subtitle">Explore published soil properties, regional satellite moisture, and practical crop rotation guidance for your farm.</p></div>
+          <div class="heading-actions"><button type="button" id="soil-refresh" class="secondary-btn">↻ Refresh sources</button></div>
+        </div>
+        <div class="soil-source-strip"><span id="soil-location">Choose a real farm location in My Farm</span><span id="soil-source-time">No data loaded</span></div>
+        <nav class="soil-subnav" aria-label="Soil and rotation sections">
+          <button type="button" class="soil-subtab active" data-soil-pane="overview" aria-pressed="true">Overview</button>
+          <button type="button" class="soil-subtab" data-soil-pane="map" aria-pressed="false">Soil Map</button>
+          <button type="button" class="soil-subtab" data-soil-pane="crops" aria-pressed="false">Crop Guide</button>
+          <button type="button" class="soil-subtab" data-soil-pane="rotation" aria-pressed="false">Rotation Planner</button>
+        </nav>
+        <div class="soil-pane" id="soil-pane-overview">
+          <div class="soil-metrics">
+            <article class="soil-metric"><span>USDA soil texture</span><strong id="soil-metric-texture">—</strong><small id="soil-metric-texture-note">Awaiting actual survey data</small></article>
+            <article class="soil-metric"><span>USDA drainage</span><strong id="soil-metric-drainage">—</strong><small>Surveyed component description</small></article>
+            <article class="soil-metric"><span>NASA SMAP surface moisture</span><strong id="soil-metric-smap">—</strong><small id="soil-metric-smap-date">9 km satellite grid · not a soil probe</small></article>
+          </div>
+          <div class="soil-layout-2">
+            <article class="card soil-card">
+              <div class="card-heading"><div><h2>Soil profile</h2><p class="muted">Verified USDA NRCS Soil Data Access</p></div><span class="data-badge">Map-unit survey</span></div>
+              <p id="soil-usda-state" class="soil-feedback">Checking your farm location…</p>
+              <div class="soil-attr-grid" id="soil-profile-fields"></div>
+              <p class="soil-note">Map-unit properties represent a published soil survey, not laboratory results from your field. Surface horizons may differ across a map unit.</p>
+              <button type="button" class="home-text-link" data-soil-pane-go="map">View USDA soil map ›</button>
+            </article>
+            <article class="card soil-card">
+              <div class="card-heading"><div><h2>Satellite soil moisture</h2><p class="muted">NASA SMAP, morning overpass, 9 km grid</p></div><span class="data-badge">Remote sensing</span></div>
+              <p id="soil-smap-state" class="soil-feedback">Checking satellite sampling configuration…</p>
+              <div id="soil-smap-chart" class="soil-smap-chart"><div class="soil-chart-empty">Only verified quality-passing SMAP readings appear here.</div></div>
+              <p class="soil-note">SMAP measures regional surface moisture, not the exact moisture beside an ESP32. Satellite observations may be missing under frozen, flooded, or unsuitable surface conditions.</p>
+              <a class="soil-external" href="https://worldview.earthdata.nasa.gov/" target="_blank" rel="noopener noreferrer">Explore imagery on NASA Worldview ↗</a>
+            </article>
+          </div>
+          <article class="card soil-card section-gap">
+            <div class="card-heading"><div><h2>What this means for your crops</h2><p class="muted">General considerations, not yield or profit predictions</p></div></div>
+            <div id="soil-crop-context"><div class="soil-chart-empty">Choose a farm location and add crops to My Farm to get started.</div></div>
+            <button type="button" class="home-text-link" data-soil-pane-go="rotation">Compare rotation options ›</button>
+          </article>
+        </div>
+        <div class="soil-pane hidden" id="soil-pane-map">
+          <div class="soil-layout-2 soil-map-layout">
+            <article class="card soil-card">
+              <div class="card-heading"><div><h2>USDA soil-map polygons</h2><p class="muted">Real NRCS Soil Data Mart WMS layer around your selected point</p></div>
+              <div class="soil-zoom"><button type="button" id="soil-map-zoom-in" aria-label="Zoom in soil map">+</button><button type="button" id="soil-map-zoom-out" aria-label="Zoom out soil map">−</button></div></div>
+              <div class="soil-map-frame" id="soil-map-frame"><img id="soil-map-image" alt="USDA survey map-unit polygons centered around the saved farm location" loading="lazy"><span class="soil-map-center" aria-hidden="true">●</span></div>
+              <p id="soil-map-notice" class="soil-note">Map polygons are served by USDA NRCS; exact survey coverage varies by location and zoom.</p>
+              <a class="soil-external" href="https://websoilsurvey.nrcs.usda.gov/app/" target="_blank" rel="noopener noreferrer">Open full USDA Web Soil Survey ↗</a>
+            </article>
+            <article class="card soil-card">
+              <div class="card-heading"><div><h2>Field location</h2><p class="muted">OpenStreetMap geographic context</p></div></div>
+              <div class="soil-map-frame soil-osm-frame"><iframe id="soil-osm" title="Map centered on your saved farm coordinate" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin"></iframe></div>
+              <p class="soil-note" id="soil-map-location">Your saved farm point is the center of both maps. Add field boundaries in a later mapping update for acreage-level comparisons.</p>
+              <div class="soil-attr-grid" id="soil-map-attributes"></div>
+            </article>
+          </div>
+        </div>
+        <div class="soil-pane hidden" id="soil-pane-crops">
+          <div class="soil-guide-toolbar"><div><h2>Crop reference library</h2><p class="muted">Eight crops from your supplied reference, expanded with growing and rotation guidance.</p></div>
+            <input id="soil-crop-search" type="search" placeholder="Search by crop or benefit…" aria-label="Search crop reference guide">
+          </div>
+          <div id="soil-crop-library" class="soil-crop-library"></div>
+          <article class="card soil-card soil-crop-detail" id="soil-crop-detail" aria-live="polite"><p class="muted">Select a crop above to see its detailed profile.</p></article>
+          <p class="soil-note">These profiles are general agronomic reference information adapted from the supplied planner—not measurements, live commodity quotes, or guarantees. For site-specific fertility or pesticide recommendations, consult local extension guidance and soil tests.</p>
+        </div>
+        <div class="soil-pane hidden" id="soil-pane-rotation">
+          <article class="card soil-card">
+            <div class="card-heading"><div><h2>Build a rotation</h2><p class="muted">Use your actual saved crops, USDA survey information, and optional quality-screened SMAP observations.</p></div></div>
+            <div class="soil-rotation-controls">
+              <label>Current crop <select id="soil-current-crop"></select></label>
+              <label>Primary objective <select id="soil-rotation-goal"><option value="water">Conserve moisture</option><option value="cover">Protect soil with cover</option><option value="diversify">Diversify crop families</option></select></label>
+            </div>
+            <div id="soil-rotation-preview" class="soil-rotation-preview"></div>
+            <div id="soil-rotation-reason" class="soil-explainer"></div>
+            <div class="form-actions soil-rotation-actions">
+              <button type="button" class="primary-btn" id="soil-save-rotation">Save this rotation draft</button>
+              <button type="button" class="secondary-btn" data-go="calendar">Open farm calendar</button>
+              <button type="button" class="secondary-btn" data-go="fieldy">Ask Fieldy about this plan</button>
+            </div>
+            <p id="soil-rotation-saved" class="soil-feedback"></p>
+          </article>
+          <article class="card soil-card section-gap">
+            <div class="card-heading"><div><h2>How rotation guidance is generated</h2><p class="muted">Transparent conditions, not fabricated forecasts</p></div></div>
+            <p class="soil-note">The suggestions are rule-based educational examples. They consider crop family, known field conditions, survey drainage, and seasonal cover benefits. No unverified “98% fit,” predicted nitrogen credit, erosion reduction, yield, or profit is calculated. A farmer should confirm local planting calendars, soil tests, diseases, equipment, and markets before acting.</p>
+          </article>
+        </div>
+      </section>
+
       <section class="panel-tab hidden" id="tab-live">
         <div class="heading-row"><div><div class="eyebrow">ESP32 FIELD SENSOR STATION</div><h1>Live Sensor Data</h1><p class="subtitle">Pair an ESP32 below to upload real sensor readings. Your account can display its own readings or view another farmer’s ESP32 with their permission.</p></div><div id="sensor-state" class="state-chip">Checking...</div></div>
         <div class="sync-note" id="sync-message">Checking sensor station and cloud connection…</div>
@@ -267,4 +358,5 @@
 </div>
 <script src="/static/app.js" defer></script>
 <script src="/static/home.js" defer></script>
+<script src="/static/soil-rotation.js" defer></script>
 </body></html>

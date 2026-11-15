@@ -1,3 +1,20 @@
+## Soil & Crop Rotation (November 2026)
+
+The new **Soil & Rotation** tab keeps the existing Auth0, farm-plan, Fieldy, TigerData, ESP32, Google Calendar and NASA POWER API endpoints unchanged. It contains **Overview**, **Soil Map**, **Crop Guide** and **Rotation Planner** views.
+
+- **USDA NRCS Soil Data Access:** `GET /api/soil/profile?latitude=...&longitude=...` uses a verified Auth0 session, server-side bounded point-intersection SQL at `https://sdmdataaccess.sc.egov.usda.gov/Tabular/post.rest`, and returns the dominant published soil-map-unit component. No USDA API token is needed. The WMS imagery is served directly from USDA; the associated OpenStreetMap pane is for geographic context. Some locations have no published detailed survey.
+- **NASA SMAP:** `GET /api/soil/smap?latitude=...&longitude=...` reads real morning `soil_moisture_am` and `retrieval_qual_flag_am` from `NASA/SMAP/SPL3SMP_E/006` via Google Earth Engine **only** with administrator configuration:
+  - `EARTH_ENGINE_PROJECT`: an Earth Engine-enabled Google Cloud project ID.
+  - `EARTH_ENGINE_SERVICE_ACCOUNT_JSON`: complete service-account credentials JSON as an encrypted Vercel Production environment variable. Keep it private; the existing Google Calendar OAuth client ID/secret cannot replace it.
+  - Enable the Earth Engine API, register the Cloud project for its intended purpose, and authorize the service account's Earth Engine access before testing. Usage fees or access restrictions may apply, depending on organization.
+- **Data integrity:** no synthetic SMAP or USDA values; 9 km SMAP measurements are not field-level ESP32 measurements; USDA survey pH/texture/drainage are representative published soil attributes, not laboratory test results. Quality-failing SMAP samples are excluded.
+- **Caching:** when TigerData is enabled and the database role can create tables, authenticated access automatically creates an independent `cropaganda_soil_cache` table on first successful retrieval. It stores account-keyed, point-keyed JSON (USDA: 24 hours; SMAP: six hours). The table can alternatively be created manually with `sql/cropaganda_soil_cache.sql`. If cache persistence fails, live sourced responses still work.
+- **Rotation drafts:** eight crop reference descriptions are adapted from the supplied React prototype, but fixed prices, made-up forecasts, predictive match percentages and synthetic sensor results are deliberately omitted. Saved drafts use the existing account-scoped browser storage. They do **not** automatically modify farm plan, ESP32 records, Google Calendar or SQL history.
+
+Official sources: https://sdmdataaccess.sc.egov.usda.gov/WebServiceHelp.aspx · https://developers.google.com/earth-engine/datasets/catalog/NASA_SMAP_SPL3SMP_E_006 · https://nsidc.org/data/spl3smp_e/versions/6
+
+---
+
 ## Cropaganda — Google Calendar and automatic NASA POWER archive (November 2026)
 
 ### Fieldy → Farm Calendar → Google Calendar
