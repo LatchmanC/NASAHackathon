@@ -1,3 +1,34 @@
+## Automatic TigerData farm and calendar synchronization
+
+Farm profiles, manual farm calendar tasks, saved rotations and locations load
+automatically from the account's TigerData records after Auth0 sign-in. While
+the authenticated dashboard is visible, it refreshes changed records every
+minute; it also checks when the browser regains focus, becomes visible, or
+the farmer opens My Farm / Soil & Rotation (with a 30-second minimum interval).
+The **Refresh TigerData now** button forces a check. No device-local calendar
+is used as a live source of truth after the initial migration.
+
+Older `fieldshift_v9_<account>_calendar` and other farm browser data are
+imported automatically at first sign-in if an earlier import was not already
+acknowledged or skipped. The server import merges calendar events and rotation
+drafts by their stable IDs, and will not replace an existing cloud plan or
+location. A separate local per-section marker records successful migration so
+an old browser task is **not** repeatedly reintroduced after deletion.
+Calendar imports run first, so malformed legacy farm plans do not prevent
+valid tasks migrating. Browser originals are not deleted, and an explicit
+**Import earlier browser data** button remains available for users who
+previously skipped the import or need to repair old entries.
+
+Automatic refreshes compare record revisions and re-render the calendar and
+other farm views only when data changed. If plan or location inputs are being
+edited, their unsaved values are kept and a conflict warning is displayed;
+the user may manually reload to discard edits. Writes stay account-isolated
+and return errors instead of silently storing data in the browser. The
+Google Calendar OAuth integration is unaffected: the synchronized farm
+calendar is Cropaganda's own manual/task calendar, not a bulk import of every
+external Google Calendar event.
+
+
 ## Farm profiles, calendar and rotation drafts in TigerData (Nov 2026)
 
 Signed-in Cropaganda accounts use TigerData as the **primary** store for their
