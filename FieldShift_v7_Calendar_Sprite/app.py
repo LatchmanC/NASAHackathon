@@ -19,7 +19,10 @@ from gemini_client import generate_gemini_reply, DEFAULT_GEMINI_MODEL
 ROOT=Path(__file__).resolve().parent
 load_dotenv(ROOT/'.env',override=False)
 app=FastAPI(title='FieldShift — production demo', docs_url=None, redoc_url=None)
-app.mount('/static',StaticFiles(directory=str(ROOT/'public'/'static')),name='static')
+# Vercel serves public/static separately from Python functions.
+static_dir = ROOT / 'public' / 'static'
+if static_dir.is_dir():
+    app.mount('/static', StaticFiles(directory=str(static_dir)), name='static')
 SAMPLE_LOCATION={'mode':'coords','label':'Test Farm — San Diego, California','latitude':32.7157,'longitude':-117.1611,'resolution':'sample city-center coordinates'}
 SAMPLE_PLAN={'total_area':5,'area_unit':'acres','notes':'Fictional Test Farm — for interface demonstration only','crops':[{'name':'Tomato','area':1.5,'stage':'Planning','planted_on':'','variety':''},{'name':'Corn','area':2,'stage':'Vegetative','planted_on':'2026-10-02','variety':''},{'name':'Potato','area':1,'stage':'Planning','planted_on':'','variety':''}]}
 
