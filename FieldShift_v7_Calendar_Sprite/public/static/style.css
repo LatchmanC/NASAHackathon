@@ -56,3 +56,34 @@
 .speech-bubble .fieldy-note{margin:12px 0 0;padding-top:10px;border-top:1px solid #cfe4d3;color:#617e67;font-size:11px}
 
 .sms-actions{flex-wrap:wrap;gap:10px}
+
+
+/* Fieldy conversation — source-labelled highlights and lightweight Gemini branding. */
+.fieldy-heading{align-items:center;flex-wrap:wrap}
+.gemini-watermark{display:inline-flex;align-items:center;gap:5px;border-radius:30px;background:#f7f5ff;border:1px solid #ded8fa;color:#5d4c9e;font-size:10px;letter-spacing:.15px;padding:7px 10px;white-space:nowrap}
+.gemini-watermark strong{font-size:11px;font-weight:780}
+.gemini-symbol{font-size:18px;line-height:1;background:linear-gradient(145deg,#3288e7,#9867cc,#e26e93);background-clip:text;-webkit-background-clip:text;color:transparent}
+.advisor-stage{grid-template-columns:98px minmax(0,1fr);align-items:stretch}
+.advisor-character{justify-content:flex-end}
+.fieldy-chat-panel{display:flex;flex-direction:column;min-width:0;background:#f5faf6;border:1px solid #d5eadb;border-radius:17px;overflow:hidden}
+.fieldy-chat-toolbar{display:flex;justify-content:space-between;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid #dceee1;color:#6d8774;font-size:10px;font-weight:650}
+.fieldy-chat-toolbar button{font-size:10px;padding:6px 9px}
+.fieldy-chat-history{min-width:0;min-height:158px;max-height:405px;overflow-y:auto;overflow-wrap:anywhere;padding:13px;display:flex;flex-direction:column;gap:13px;scroll-behavior:smooth}
+.fieldy-welcome{align-self:flex-start;color:#476851;font-size:12px;line-height:1.6;background:#e9f5ec;border-radius:13px;padding:13px;max-width:98%}
+.fieldy-message{max-width:96%;border-radius:14px;padding:11px 13px;line-height:1.65;font-size:12px;white-space:normal;min-width:0}
+.fieldy-message-user{align-self:flex-end;background:#286c4b;color:white;border-bottom-right-radius:4px}
+.fieldy-message-assistant{align-self:flex-start;background:white;border:1px solid #dbe8df;color:#294636;border-bottom-left-radius:4px;box-shadow:0 2px 8px #1a583e0a}
+.fieldy-message-label{font-size:10px;font-weight:750;letter-spacing:.25px;margin-bottom:7px;opacity:.85}
+.fieldy-message-content{white-space:pre-wrap;overflow-wrap:anywhere}
+.fieldy-message-content strong{font-weight:800;color:#184a33}
+.fieldy-message-user .fieldy-message-content strong{color:white}
+.fieldy-message-assistant.thinking{color:#728578}
+.fieldy-highlights{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:7px;margin:12px 0}
+.fieldy-highlight{background:#eef8f0;border:1px solid #d0e6d7;border-radius:9px;padding:10px;min-width:0}
+.fieldy-highlight-label{display:block;color:#57765c;font-size:10px;margin-bottom:5px;font-weight:720}
+.fieldy-highlight-value{display:block;color:#15583a;font-size:13px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}
+.fieldy-highlight-source{display:block;color:#789185;font-size:9px;margin-top:5px}
+.fieldy-message .fieldy-section{margin-top:12px;padding-top:10px;border-top:1px solid #e6ede7}
+.fieldy-message .fieldy-section>b{display:block;margin-bottom:6px;font-size:11px;color:#3f6550}
+.fieldy-message .fieldy-section li{margin:4px 0;color:#627e6c;font-size:11px}
+@media(max-width:660px){.advisor-stage{grid-template-columns:minmax(0,1fr)}.advisor-character{display:none}.fieldy-message{max-width:100%}.fieldy-chat-history{max-height:390px}}

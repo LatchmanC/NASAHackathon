@@ -251,6 +251,8 @@ class AdviceRequest(BaseModel):
     location:dict=Field(default_factory=dict)
     nasa_excerpt:list[dict]=Field(default_factory=list)
     upcoming_calendar_tasks:list[dict]=Field(default_factory=list)
+    chat_history:list[dict]=Field(default_factory=list,max_length=16)
+    soil_view:dict=Field(default_factory=dict)
     weather_mode:str='live'
     sensor_view:str='auto'
     client_today:str=''
