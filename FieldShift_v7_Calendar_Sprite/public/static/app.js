@@ -19,14 +19,119 @@ function showToast(text,isError=false){const t=$('#toast');t.textContent=text;t.
 // but localStorage is NOT a secure multi-user database and must not store sensitive farm data.
 let fsAccount='preview';
 const fsKey=k=>'fieldshift_v9_'+fsAccount+'_'+k;
-function saved(k,fallback=null){try{const v=localStorage.getItem(fsKey(k));return v===null?fallback:JSON.parse(v);}catch{return fallback;}}
-function persist(k,v){try{localStorage.setItem(fsKey(k),JSON.stringify(v));}catch(e){showToast('Browser storage unavailable. Changes may not persist.',true);}}
+const farmKeys=['plan','location','calendar','rotation_scenarios'];
+let farmCloudMode='loading';
+let farmCloudSections={};
+function legacyValue(k,fallback=null){
+  try{const raw=localStorage.getItem(fsKey(k));return raw===null?fallback:JSON.parse(raw);}
+  catch{return fallback;}
+}
+function saved(k,fallback=null){
+  if(farmKeys.includes(k)){
+    if(farmCloudMode==='ready'){
+      const section=farmCloudSections[k];
+      return section?.present?section.value:fallback;
+    }
+    if(farmCloudMode==='error')return fallback;
+  }
+  return legacyValue(k,fallback);
+}
+async function persist(k,v){
+  if(farmKeys.includes(k)){
+    if(farmCloudMode==='ready'){
+      const previous=farmCloudSections[k]||{revision:0};
+      const result=await api('/api/farm/state/'+encodeURIComponent(k),{
+        method:'PUT',body:{value:v,expected_revision:previous.revision||0},timeout:22000
+      });
+      farmCloudSections[k]={value:result.value,revision:result.revision,present:true};
+      return result;
+    }
+    if(farmCloudMode!=='sample')throw Error('TigerData is unavailable. Farm changes were NOT saved; refresh and retry.');
+  }
+  try{localStorage.setItem(fsKey(k),JSON.stringify(v));return {saved:true,storage:'browser'};}
+  catch(e){throw Error('Browser storage unavailable; changes were not saved.');}
+}
+function cloudNotice(message,isError=false){
+  const el=$('#farm-cloud-status');
+  if(!el)return;
+  el.textContent=message;
+  el.classList.toggle('warn',isError);
+}
+function browserImportCandidates(){
+  const choices={};
+  for(const key of farmKeys){
+    const value=legacyValue(key);
+    if(value===null||value===undefined)continue;
+    if((key==='calendar'||key==='rotation_scenarios')&&(!Array.isArray(value)||!value.length))continue;
+    if(key==='location'&&/^(Demo|Test Farm)\\b/i.test(value.label||''))continue;
+    choices[key]=value;
+  }
+  return choices;
+}
+function showFarmImportOffer(){
+  const banner=$('#farm-import-banner');
+  if(!banner||farmCloudMode!=='ready')return;
+  const entries=browserImportCandidates();
+  const acknowledged=legacyValue('farm_cloud_import_ack');
+  const candidateKeys=Object.keys(entries);
+  banner.classList.toggle('hidden',candidateKeys.length===0||acknowledged===true);
+  $('#farm-import-summary').textContent=candidateKeys.length?
+    'This browser has older '+candidateKeys.map(x=>x.replaceAll('_',' ')).join(', ')+' data. Import it into your account without replacing existing cloud farm plans or locations.':
+    'No earlier browser data was found.';
+}
+async function loadFarmCloud(){
+  try{
+    const result=await api('/api/farm/state',{timeout:22000});
+    farmCloudSections=result.sections||{};
+    farmCloudMode='ready';
+    cloudNotice('● TigerData connected · Your farm data syncs across signed-in devices.');
+    showFarmImportOffer();
+    const loc=saved('location');
+    if(loc){
+      $('#location-label').textContent=loc.label;
+      $('#location-current').textContent=loc.label;
+    }
+  }catch(e){
+    farmCloudMode='error';
+    cloudNotice('⚠ TigerData farm data unavailable: '+e.message+'. Existing browser records are preserved, but changes cannot be saved.',true);
+    showToast('Farm cloud storage is unavailable. No farm changes will be saved until it reconnects.',true);
+  }
+}
+async function importBrowserFarmData(){
+  const btn=$('#farm-import-button');
+  const sections=browserImportCandidates();
+  if(!Object.keys(sections).length)return;
+  btn.disabled=true;
+  try{
+    const result=await api('/api/farm/import',{method:'POST',body:{sections},timeout:30000});
+    farmCloudSections=result.sections;
+    localStorage.setItem(fsKey('farm_cloud_import_ack'),JSON.stringify(true));
+    $('#farm-import-banner').classList.add('hidden');
+    const actions=Object.entries(result.results||{}).map(([key,value])=>key+': '+value.action);
+    cloudNotice('● TigerData import complete · '+actions.join(' · ')+'. Browser originals retained.');
+    await Promise.allSettled([loadPlan(),loadCalendar(),initLocations()]);
+    if(typeof soilLoad==='function')soilLoad(true);
+    showToast('Browser farm data imported safely into TigerData.');
+  }catch(e){showToast('Import failed; browser data is unchanged: '+e.message,true);}
+  finally{btn.disabled=false;}
+}
 function currentLocation(){return saved('location',{mode:'coords',label:'Demo — New York City',latitude:40.7128,longitude:-74.006});}
 async function api(path,opts={}){
   const method=opts.method||'GET';
   if(path==='/api/plan'&&method==='GET'){
     const plan=saved('plan');if(plan)return plan;
   }
+  if(path==='/api/calendar'&&farmCloudMode==='ready'){
+    if(method==='GET')return {events:saved('calendar',[]),storage:'TigerData'};
+    if(method==='POST'){
+      const result=await api('/api/farm/calendar',{method:'POST',body:opts.body||{},timeout:22000});
+      farmCloudSections.calendar={value:result.events,revision:result.revision,present:true};
+      smsSync();
+      return result;
+    }
+  }
+  if(path==='/api/calendar'&&farmCloudMode!=='sample')
+    throw Error('TigerData calendar unavailable. Task was not saved.');
   if(path==='/api/calendar'){
     const events=saved('calendar',[]);
     if(method==='GET')return {events,storage:'browser only'};
@@ -39,6 +144,15 @@ async function api(path,opts={}){
       const next=[...events,entry].sort((a,b)=>a.date.localeCompare(b.date));persist('calendar',next);smsSync();return {saved:true,events:next};
     }
   }
+  if(path.startsWith('/api/calendar/')&&method==='DELETE'&&farmCloudMode==='ready'){
+    const id=decodeURIComponent(path.split('/').pop());
+    const result=await api('/api/farm/calendar/'+encodeURIComponent(id),{method:'DELETE',timeout:22000});
+    farmCloudSections.calendar={value:result.events,revision:result.revision,present:true};
+    smsSync();
+    return result;
+  }
+  if(path.startsWith('/api/calendar/')&&method==='DELETE'&&farmCloudMode!=='sample')
+    throw Error('TigerData calendar unavailable. Task was not deleted.');
   if(path.startsWith('/api/calendar/')&&method==='DELETE'){
     const id=decodeURIComponent(path.split('/').pop());const list=saved('calendar',[]),next=list.filter(x=>x.id!==id);
     if(next.length===list.length)throw Error('Task not found');
@@ -65,8 +179,8 @@ async function api(path,opts={}){
   try{
     const r=await fetch(path,{method,headers:{'Content-Type':'application/json','X-FieldShift-Request':'1'},body:opts.body===undefined?undefined:JSON.stringify(opts.body),signal:ctl.signal,cache:'no-store'});
     const j=await r.json();if(!r.ok)throw Error(j.detail||j.error||`HTTP ${r.status}`);
-    if(path==='/api/plan'&&method==='POST'&&j.plan)persist('plan',j.plan);
-    if(path==='/api/location'&&method==='POST'&&j.location){persist('location',j.location);localStorage.removeItem(fsKey('nasa'));smsSync();}
+    if(path==='/api/plan'&&method==='POST'&&j.plan)await persist('plan',j.plan);
+    if(path==='/api/location'&&method==='POST'&&j.location){await persist('location',j.location);localStorage.removeItem(fsKey('nasa'));smsSync();}
     if(path.startsWith('/api/nasa?mode=real')&&j.nasa_daily?.is_real_nasa)persist('nasa',j.nasa_daily);
     if(path.startsWith('/api/overview'))j.location=currentLocation();
     return j;
@@ -158,7 +272,7 @@ function collectPlan(){return {total_area:Number($('#farm-size').value),area_uni
     area:Number(el.querySelector('.crop-area').value),stage:el.querySelector('.crop-stage').value,
     planted_on:el.querySelector('.crop-date').value,variety:el.querySelector('.crop-variety').value.trim()}))};}
 async function savePlan(){try{const r=await api('/api/plan',{method:'POST',body:collectPlan()});
-  $('#plan-save-status').textContent='Saved in this browser (not yet TigerData)';showToast('Farm plan saved in this browser.');}
+  $('#plan-save-status').textContent=farmCloudMode==='ready'?'Saved in TigerData':'Saved in sample browser storage';showToast('Farm plan saved.');}
   catch(e){showToast(e.message,true);}}
 function renderFieldyAdvice(a){
   // Escaped text only; no model-authored HTML is executed.
@@ -316,16 +430,9 @@ async function saveLocation(){
   const btn=$('#save-location');btn.disabled=true;
   try{const r=await api('/api/location',{method:'POST',body:data,timeout:32000});
     $('#location-label').textContent=r.location.label;$('#location-current').textContent=r.location.label;
-    $('#location-message').textContent='Location saved in this browser. Download NASA data for the new region.';
+    $('#location-message').textContent=farmCloudMode==='ready'?'Farm location saved in TigerData.':'Sample farm location saved in this browser.';
     state.nasa=null;
-    try{
-      const l=r.location;
-      await api('/api/farm/location',{method:'POST',body:{latitude:l.latitude,
-        longitude:l.longitude,label:l.label},timeout:18000});
-      $('#location-message').textContent='Farm location saved and registered for automatic daily NASA POWER sync.';
-    }catch(syncError){
-      $('#location-message').textContent='Saved in browser; daily NASA sync not registered: '+syncError.message;
-    }
+    if(farmCloudMode==='ready')$('#location-message').textContent='Farm location saved in TigerData and registered for automatic daily NASA POWER sync.';
     showToast('Farm location updated.');await loadLive();
   }catch(e){$('#location-message').textContent=e.message;showToast(e.message,true);}
   finally{btn.disabled=false;}
@@ -494,6 +601,12 @@ function attach(){
   $('#calendar-next').onclick=()=>moveCalendarMonth(1);
   $('#calendar-today').onclick=()=>{const d=new Date();calendarState.year=d.getFullYear();calendarState.month=d.getMonth();chooseCalendarDay(todayISO());};
   $('#calendar-form').addEventListener('submit',addCalendarEvent);
+  $('#farm-import-button').addEventListener('click',importBrowserFarmData);
+  $('#farm-import-skip').addEventListener('click',()=>{
+    localStorage.setItem(fsKey('farm_cloud_import_ack'),JSON.stringify(true));
+    $('#farm-import-banner').classList.add('hidden');
+    cloudNotice('● TigerData connected · Kept existing cloud data. Old browser entries remain on this device.');
+  });
 }
 async function pairDevice(){
   const box=$('#device-pair-result'),button=$('#pair-device');
@@ -572,15 +685,18 @@ async function loadAccount(){
     if(data.authenticated){
       fsAccount='auth_'+String(data.user?.sub||'').replace(/[^a-z0-9_-]/gi,'_').slice(0,80);
       $('#sensor-view').value=saved('sensor_view','auto');
+      farmCloudMode=data.user?.mode==='sample'?'sample':'loading';
       $('#device-pair-panel').classList.toggle('hidden',data.user?.mode==='sample');
       if(data.user?.mode==='sample'){
         if(!saved('location'))persist('location',{mode:'coords',label:'Test Farm — San Diego, California',latitude:32.7157,longitude:-117.1611,resolution:'sample city-center coordinates'});
         if(!saved('calendar'))persist('calendar',[{id:'demo-inspection',date:'2026-11-18',kind:'inspection',crop:'Corn',note:'Check irrigation and inspect sample field'},{id:'demo-watering',date:'2026-11-21',kind:'watering',crop:'Tomato',note:'Check soil before watering'}]);
       }
+      if(farmCloudMode==='sample')cloudNotice('Sample mode · Farm data remains in this browser.');
+      else await loadFarmCloud();
       account.textContent='Signed in: '+(data.user?.name||data.user?.email||'Farmer')+' · ';
       const link=document.createElement('a');link.href='/auth/logout';link.textContent='Sign out';account.appendChild(link);
     }else{fsAccount='preview';account.textContent='Public preview · Browser-only farm plan';}
-  }catch(e){console.warn('Account status unavailable',e);}
+  }catch(e){farmCloudMode='error';cloudNotice('Unable to load farm cloud account.',true);console.warn('Account status unavailable',e);}
 }
 attach();
 // ---------- Text alerts (Twilio) ----------
@@ -608,13 +724,7 @@ loadAccount().then(()=>{
   initLocations();loadLive();loadSharedDeviceStatus();loadPlan();loadCalendar();loadGeminiStatus();loadGoogleCalendarStatus();initSms();
   const pending=saved('fieldy_calendar_pending');
   if(pending)showFieldyCalendarProposal(pending);
-  const existingLocation=saved('location');
-  if(existingLocation&&Number.isFinite(+existingLocation.latitude)&&
-      Number.isFinite(+existingLocation.longitude)&&
-      !/^Demo\\b|^Test Farm\\b/i.test(existingLocation.label||'')){
-    api('/api/farm/location',{method:'POST',body:{latitude:existingLocation.latitude,
-      longitude:existingLocation.longitude,label:existingLocation.label||''}}).catch(()=>{});
-  }
+  // No browser-only location writes: location updates are committed atomically to TigerData.
 });
 // Poll every two seconds ONLY with TigerData. Legacy Vercel Blob must stay
 // on the 30-second cadence to protect limited cloud operation quotas.
