@@ -1,3 +1,71 @@
+## Cropoganda — Google Calendar and automatic NASA POWER archive (November 2026)
+
+### Fieldy → Farm Calendar → Google Calendar
+
+The Cropoganda dashboard now accepts **calendar action proposals** in Fieldy answers.
+Example: "I want to plant strawberries tomorrow." Fieldy may propose a
+**Plant strawberries** task for tomorrow (the visitor's local calendar date).
+The user must explicitly confirm **Yes, add to both calendars**, or type
+**yes** while that proposal is pending. **Nothing is scheduled automatically**.
+A refusal dismisses the proposal. The same request ID avoids duplicate Google
+events if a confirmation is retried. The farm-calendar side currently saves tasks
+**to this browser**; the Google side saves all-day tasks to the user's **primary
+Google Calendar**. This is one-way, confirmed event creation, not bidirectional
+calendar synchronization or synchronization of all manually added farm tasks.
+
+To enable Google Calendar linking, the Cropoganda project owner must:
+
+1. Open Google Cloud Console. Enable the **Google Calendar API**.
+2. Configure the **Google Auth Platform / OAuth consent screen** for Cropoganda.
+   Add test users during development, or complete any Google verification needed
+   before general public use of the sensitive Calendar events scope.
+3. Create an **OAuth 2.0 Client ID** of type **Web application**.
+   Add this **exact Authorized redirect URI**:
+   `https://cropaganda.garden/api/google/callback`
+4. In Vercel project `nasa-hackathon` → Settings → Environment Variables,
+   add the client's `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+   as Production encrypted secrets; do not commit these values.
+   `GOOGLE_TOKEN_ENCRYPTION_KEY` is an independent Fernet key already provisioned
+   in Production; **never change it without migrating existing encrypted tokens**.
+5. Redeploy. Sign in to Cropoganda through Auth0, select **Connect Google
+   Calendar**, grant the `calendar.events` permission, and ask Fieldy to add a task.
+
+Google refresh tokens are encrypted in the account-specific
+`cropoganda_google_calendar` SQL table. The table is created by a controlled
+CREATE TABLE IF NOT EXISTS on first connection, or manually via the migration
+`sql/cropoganda_google_calendar.sql`. Farmers can disconnect the link at any
+time. An OAuth connection can only be used by the corresponding authenticated
+Auth0 account. Google event creation requires both the account's consent and
+per-event confirmation.
+
+### Automatic NASA POWER sync → TigerData
+
+A Vercel Cron job is configured for **09:15 UTC daily**, sending a secret
+Authorization header to `GET /api/nasa/cron-sync`. A strong `CRON_SECRET` was
+provisioned to Production. The handler refuses any request without that bearer
+secret. Only **actual NASA POWER historical daily data** is stored; no synthetic
+weather rows are generated.
+
+When a farmer explicitly selects/saves the farm location, Cropoganda stores its
+coordinates in TigerData's `cropoganda_farm_locations` table, created if missing.
+When they return, an already selected, non-demo location is registered as well.
+The daily cron refreshes the most recent 15 days for at most eight registered
+farms per invocation, prioritizing the least recently synced farms. It updates
+the account-scoped `cropoganda_nasa_daily` table with available real data.
+NASA's most recent day may not yet be published. On Hobby Vercel tiers daily Cron
+execution is approximate; inspect runtime logs to verify actual successful syncs.
+
+The History tab now presents a **single dropdown of saved UTC dates**, populated
+with `GET /api/history/dates` (distinct recorded ESP32 archive dates), followed
+by a saved-timestamp selection. No month/year filter or synthetic readings.
+
+Additional migration script:
+`sql/cropoganda_google_calendar.sql`.
+No ESP32 firmware or device token changes are required for these calendar
+and historical browsing features.
+
+---
+
 # Cropoganda — TigerData live monitoring and historical archive
 
 **Website:** https://cropaganda.garden
