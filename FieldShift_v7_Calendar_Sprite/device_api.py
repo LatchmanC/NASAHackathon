@@ -14,7 +14,49 @@ def signer():
     return URLSafeTimedSerializer(secret_key=secret,salt='fieldshift-device-token-v1')
 
 class PairRequest(BaseModel):
-    device_id:str=Field(default='esp32-01',pattern=r'^[A-Za-z0-9_-]{1,40}
+    device_id:str=Field(default='esp32-01',pattern=r'^[A-Za-z0-9_-]{1,40}$')
+
+class JoinRequest(BaseModel):
+    token:str=Field(min_length=30,max_length=4096)
+
+def share_signer():
+    """Separate signing salt: viewing tokens cannot authenticate ESP32 uploads."""
+    from auth0_integration import settings
+    return URLSafeTimedSerializer(secret_key=settings()['session_secret'],
+                                  salt='fieldshift-view-token-v1')
+
+def share_claims(token):
+    try:
+        claims=share_signer().loads(token,max_age=180*86400)
+    except (BadSignature,SignatureExpired,ValueError,TypeError):
+        raise HTTPException(400,'Invalid or expired sharing token')
+    if (not isinstance(claims,dict) or claims.get('scope')!='view' or
+        not isinstance(claims.get('sub'),str) or not claims['sub'] or
+        not isinstance(claims.get('device_id'),str) or not claims['device_id'] or
+        not isinstance(claims.get('version'),str)):
+        raise HTTPException(400,'Invalid sharing token scope')
+    return claims
+
+def resolve_device_data(account,view='auto'):
+    """Resolve owned or explicitly linked read-only ESP32 telemetry."""
+    if view not in ('auto','own','shared'):
+        raise HTTPException(400,'Invalid sensor view')
+    own=read_snapshot(account) if view!='shared' else None
+    if view=='own' or (view=='auto' and own and own.get('latest')):
+        return own,'own'
+    link=read_shared_link(account)
+    if link:
+        try:
+            claims=share_claims(link['token'])
+        except HTTPException:
+            claims=None
+        if claims and claims['sub']!=account:
+            shared=read_snapshot(claims['sub'])
+            if (shared and shared.get('latest') and
+                shared.get('share_version','v1')==claims['version'] and
+                shared['latest'].get('device_id')==claims['device_id']):
+                return shared,'shared'
+    return (own,'own') if own and own.get('latest') else (None,'none')
 
 def _owner(request):
     try:user=request.session.get('user',{})
