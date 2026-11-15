@@ -1,0 +1,2 @@
+data/farm_data/climate/prism_ppt_us_30s_2016.zip filter=lfs diff=lfs merge=lfs -text
+data/farm_data/climate/prism_ppt_us_30s_2025.zip filter=lfs diff=lfs merge=lfs -text
