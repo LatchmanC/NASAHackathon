@@ -1,3 +1,37 @@
+## Read-only public data in Demo Mode (November 2026)
+
+Public sample sessions use live public services for their selected coordinates:
+NASA POWER daily historical records, Open-Meteo seven-day forecasts,
+US National Weather Service official alerts, and public Soil & Rotation
+data from USDA SSURGO, NASA POWER climatology, USGS elevation/water,
+USDA CDL and the pre-extracted PRISM historical reference table.
+
+- **NASA POWER:** `GET /api/nasa?mode=auto|real` fetches actual public
+  daily records in Demo. Only explicit `mode=demo` returns synthetic data.
+  Responses are cached in-process for one hour and in the demo browser for
+  six hours, without TigerData writes. Missing provider data is reported as
+  unavailable, never replaced with mock readings.
+- **Current weather/NWS:** `GET /api/weather?mode=live` returns
+  real Open-Meteo and NWS data for demo coordinates, cached in-process
+  for ten minutes; warnings are clearly official and sensor alerts remain
+  synthetic or inactive. NWS coverage is US-specific.
+- **Soil & Rotation:** `GET /api/soil/profile` and
+  `GET /api/soil/context` use only public USDA/NASA/USGS/CDL
+  providers, with in-process hourly caching and no account-owned cache.
+  Official USDA/OSM public map overlays may load in Demo Mode.
+  The hard-coded crop reference guide/rotation rules remain educational.
+- **Isolation:** This feature does not grant Auth0 privileges or allow
+  demo users to access TigerData farm/sensor history, Google Calendar,
+  SMS/Twilio, device pairing, or the Gemini API key.
+  Sample ESP32 readings, farm plans, and calendar data remain fictional
+  and locally stored. Labels distinguish measurements, provider estimates,
+  and historical PRISM reference points.
+- **Upstream availability:** External public APIs may fail, be rate-limited
+  or have no coverage. These are displayed as unavailable, not fake values.
+  In-process caching is best effort on serverless infrastructure.
+
+---
+
 ## One-click public Demo mode (safe sandbox)
 
 The login screen now includes a **Demo** button using a first-party form POST
@@ -12,17 +46,15 @@ Every demo dashboard panel is clearly marked SIMULATED DEMO:
 
 - Example farm, crop plan and calendar tasks are stored only in the visitor's
   browser, under an isolated sample account key.
-- Simulated live ESP32 values, history charts, dated archives, and NASA-like
-  regional climate samples populate the dashboard without requesting real
-  hardware observations or NASA measurements.
-- Soil & Rotation renders fictional soil characteristics (e.g., sandy loam,
-  pH 6.4), mock climate/terrain/CDL classifications, and the normal
-  educational crop reference guide. No USDA/USGS/NASA/PRISM services or
-  authenticated soil caches are queried for demo soil values. External map
-  embeds are disabled in the sample to avoid implying fictional values
-  are a real USDA survey.
-- Example weather forecasts and sample alerts are labelled synthetic;
-  no real forecast/alerts are queried in demo mode.
+- Simulated live ESP32 values, history charts, and dated archives
+  remain fictional; NASA POWER daily regional climate is real for the
+  demo coordinates when the external provider is available.
+- Soil & Rotation retrieves public USDA, NASA POWER climate, USGS and
+  CDL data for demo coordinates, without reading private cached accounts.
+  PRISM is an archived historical reference table. Unsupported values
+  are never invented. Public USDA/OSM map embeds are available.
+- Open-Meteo forecasts and NWS official alerts are real public requests for
+  the chosen demo coordinates. Failed checks are identified as unavailable.
 - Google Calendar, SMS/Twilio and ESP32 pairing are disabled and explicitly
   labelled because they require genuine account credentials or hardware.
 - **Fieldy:** Public demo does *not* use the paid Gemini API, even when
