@@ -1,3 +1,51 @@
+## One-click public Demo mode (safe sandbox)
+
+The login screen now includes a **Demo** button using a first-party form POST
+to `/auth/demo`; no username, password or Auth0 account is required.
+Production must explicitly enable `FIELDSHIFT_SAMPLE_ACCOUNT=1` while
+keeping `AUTH0_ENABLED=1`. The existing secure session cookie is retained,
+with a public `mode=sample` session. Verified Auth0-only database/device
+endpoints continue to reject demo users, and no TigerData records are read
+or written for the sample account.
+
+Every demo dashboard panel is clearly marked SIMULATED DEMO:
+
+- Example farm, crop plan and calendar tasks are stored only in the visitor's
+  browser, under an isolated sample account key.
+- Simulated live ESP32 values, history charts, dated archives, and NASA-like
+  regional climate samples populate the dashboard without requesting real
+  hardware observations or NASA measurements.
+- Soil & Rotation renders fictional soil characteristics (e.g., sandy loam,
+  pH 6.4), mock climate/terrain/CDL classifications, and the normal
+  educational crop reference guide. No USDA/USGS/NASA/PRISM services or
+  authenticated soil caches are queried for demo soil values. External map
+  embeds are disabled in the sample to avoid implying fictional values
+  are a real USDA survey.
+- Example weather forecasts and sample alerts are labelled synthetic;
+  no real forecast/alerts are queried in demo mode.
+- Google Calendar, SMS/Twilio and ESP32 pairing are disabled and explicitly
+  labelled because they require genuine account credentials or hardware.
+- **Fieldy:** Public demo does *not* use the paid Gemini API, even when
+  production's secret is configured, to avoid unrestricted third-party
+  consumption. The Fieldy panel reads **"Demo mode, key not available"**
+  and supplies scripted, question-aware sample replies with clear
+  source labels. Real Auth0 users retain normal Gemini-powered advice.
+
+Legacy public `test/test` demo credentials remain accepted as a compatibility
+path. Sample sessions do not contain an email or validated Auth0 subject and
+cannot access real user information. Exiting demo logs the sample session out
+without contacting Auth0.
+
+Deployment: this branch restores the last known working Fieldy/farm calendar
+frontend `941ace4` before adding the Demo feature; the previously rolled-back
+automatic TigerData calendar sync does not return to production.
+
+Validation:
+`python -m unittest discover -s tests -p 'test_public_demo.py' -v` and
+`python -m unittest discover -s tests -p 'test_sample_login.py' -v`.
+
+---
+
 ## Fieldy Gemini conversation and Soil & Rotation context
 
 - **Gemini attribution:** A visible "Powered by Gemini" badge sits beside
