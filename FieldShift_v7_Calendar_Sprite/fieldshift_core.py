@@ -1,4 +1,4 @@
-"""FieldShift shared Python utilities. Python 3.10+; offline first."""
+"""Cropoganda shared Python utilities. Python 3.10+; offline first."""
 from __future__ import annotations
 import json
 from contextlib import contextmanager
@@ -380,7 +380,7 @@ def gemini_weather_outlook(readings, nasa, location, api_key, model='gemini-3.5-
         'nasa_context': nasa if nasa else 'No NASA POWER data available (do not invent it).',
         'user_request': question[:600]
     }
-    prompt = '''You are FieldShift, a cautious agricultural weather-risk ANALYST, not an operational weather forecasting service.
+    prompt = '''You are Cropoganda, a cautious agricultural weather-risk ANALYST, not an operational weather forecasting service.
 Data is JSON below. Explain possible near-term signals (next 0–6 hours) in plain language.
 1. Separate OBSERVED sensor values, NASA HISTORICAL context, and INFERENCES.
 2. Explicitly state that NASA POWER historical data is NOT a short-term forecast.

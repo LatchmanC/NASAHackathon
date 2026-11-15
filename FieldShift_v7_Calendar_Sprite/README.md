@@ -14,7 +14,7 @@ The public `test / test` sample login has been retired. The login page offers on
 
 ---
 
-## FieldShift v14 — Direct Gemini answers and ESP32 cloud ingestion
+## Cropoganda v14 — Direct Gemini answers and ESP32 cloud ingestion
 
 **Production:** https://cropaganda.garden
 
@@ -73,7 +73,7 @@ Every registered user who has **verified their email** and signed in using Auth0
 
 ---
 
-# FieldShift v11 — Production login + sample profile
+# Cropoganda v11 — Production login + sample profile
 
 **Live production**: https://cropaganda.garden
 
@@ -108,7 +108,7 @@ Set Auth0 Regular Web Application URLs:
 - Logout: `https://cropaganda.garden/`
 - Web Origin: `https://cropaganda.garden`
 
-If Auth0 requests fail, verify these values in Auth0. The separate Auth0 Management API credentials in Vercel are **not** required for user sign-in. Login passwords belong in Auth0, never in the FieldShift backend. An Auth0 Audience is optional for this server-managed browser session.
+If Auth0 requests fail, verify these values in Auth0. The separate Auth0 Management API credentials in Vercel are **not** required for user sign-in. Login passwords belong in Auth0, never in the Cropoganda backend. An Auth0 Audience is optional for this server-managed browser session.
 
 ## Local run
 
@@ -123,7 +123,7 @@ For local testing, set `AUTH0_ENABLED=0`, `FIELDSHIFT_DEMO=1`, `FIELDSHIFT_SAMPL
 
 ## Live Auth0 setup for cropaganda.garden
 
-The FieldShift Vercel site uses **https://cropaganda.garden** as its canonical host.
+The Cropoganda Vercel site uses **https://cropaganda.garden** as its canonical host.
 In your existing Auth0 **Regular Web Application**, set:
 
 | Auth0 setting | Value |
@@ -142,9 +142,9 @@ The app accepts `SESSION_SECRET` or existing `AUTH0_SECRET` (at least 32 charact
 
 ---
 
-# FieldShift v9 — Vercel-ready Preview
+# Cropoganda v9 — Vercel-ready Preview
 
-This edition migrates the FieldShift v8 three-tab dashboard to **stateless FastAPI** for Vercel's Python runtime. It keeps the original responsive layout and Fieldy mascot, but changes Fieldy's output to compact cards rather than raw technical essays.
+This edition migrates the Cropoganda v8 three-tab dashboard to **stateless FastAPI** for Vercel's Python runtime. It keeps the original responsive layout and Fieldy mascot, but changes Fieldy's output to compact cards rather than raw technical essays.
 
 ## What works in this preview
 

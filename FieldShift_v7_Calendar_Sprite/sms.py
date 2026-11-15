@@ -1,15 +1,15 @@
-"""FieldShift text messages (Twilio) - Vercel/stateless edition.
+"""Cropoganda text messages (Twilio) - Vercel/stateless edition.
 
 Features
   1. Alerts       - when the ESP32 uploads a reading that NEWLY crosses a rule (low soil
                     moisture, heat, frost, wet rain plate), the linked farm gets a text.
   2. Reminders    - a daily Vercel Cron (and a dashboard button) texts tomorrow's calendar tasks.
-  3. Text Fieldy  - texting any question to the FieldShift number gets a Gemini answer.
+  3. Text Fieldy  - texting any question to the Cropoganda number gets a Gemini answer.
   4. STATUS/TASKS - texting STATUS returns the latest readings; TASKS the upcoming calendar.
 
 Vercel environment variables (Project Settings -> Environment Variables):
   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN   from the Twilio Console (keep the token secret)
-  TWILIO_FROM_NUMBER                      the FieldShift Twilio number, e.g. +16413216713
+  TWILIO_FROM_NUMBER                      the Cropoganda Twilio number, e.g. +16413216713
   FIELDSHIFT_SMS_TO                       farmer phone number(s), comma-separated, e.g. +16204136430
                                           Only these numbers can text in or receive texts.
   APP_BASE_URL                            already used by Auth0, e.g. https://cropaganda.garden
@@ -172,16 +172,16 @@ def triggered(reading):
 
 def alert_text(name, advice, r, demo=False):
     tag = ' [DEMO]' if demo else ''
-    return (f'FieldShift alert{tag}: {name}. Soil {fmt(r.get("soil_moisture_pct"), "%")}, '
+    return (f'Cropoganda alert{tag}: {name}. Soil {fmt(r.get("soil_moisture_pct"), "%")}, '
             f'temp {fmt(r.get("temperature_c"), "C", 1)}, rain plate {fmt(r.get("rain_wetness_pct"), "%")}. '
             f'{advice} Reply STATUS for readings.')
 
 
 def status_text(latest, label=''):
     if not latest:
-        return 'FieldShift: no sensor readings yet. Is the ESP32 online and paired?'
+        return 'Cropoganda: no sensor readings yet. Is the ESP32 online and paired?'
     when = str(latest.get('recorded_at', ''))[:16].replace('T', ' ')
-    head = f'FieldShift status{" - " + label if label else ""}'
+    head = f'Cropoganda status{" - " + label if label else ""}'
     return (f'{head}\nTemp {fmt(latest.get("temperature_c"), "C", 1)} | Humidity {fmt(latest.get("humidity_pct"), "%")}\n'
             f'Soil moisture {fmt(latest.get("soil_moisture_pct"), "%")} | Rain plate {fmt(latest.get("rain_wetness_pct"), "%")}\n'
             f'Light {fmt(latest.get("light_pct"), "%")} | Pressure {fmt(latest.get("pressure_hpa"), " hPa")}\n'
@@ -196,15 +196,15 @@ def task_line(t):
 def tasks_text(tasks, today):
     upcoming = [t for t in tasks if t['date'] >= today][:6]
     if not upcoming:
-        return 'FieldShift: no upcoming tasks on the farm calendar.'
-    return 'FieldShift upcoming tasks:\n' + '\n'.join(f'{t["date"][5:]}: {task_line(t)}' for t in upcoming)
+        return 'Cropoganda: no upcoming tasks on the farm calendar.'
+    return 'Cropoganda upcoming tasks:\n' + '\n'.join(f'{t["date"][5:]}: {task_line(t)}' for t in upcoming)
 
 
 def reminder_text(tasks_tomorrow):
-    return 'FieldShift reminder - tomorrow:\n' + '\n'.join('- ' + task_line(t) for t in tasks_tomorrow[:8])
+    return 'Cropoganda reminder - tomorrow:\n' + '\n'.join('- ' + task_line(t) for t in tasks_tomorrow[:8])
 
 
-HELP_TEXT = ('FieldShift by text:\nSTATUS - latest field readings\nTASKS - upcoming calendar tasks\n'
+HELP_TEXT = ('Cropoganda by text:\nSTATUS - latest field readings\nTASKS - upcoming calendar tasks\n'
              'Or text any farming question and Fieldy will answer.')
 
 
@@ -241,7 +241,7 @@ def _user(request: Request, allow_sample=False):
     except AssertionError:
         user = {}
     if not isinstance(user, dict) or not user.get('sub'):
-        raise HTTPException(401, 'Please sign in to FieldShift.')
+        raise HTTPException(401, 'Please sign in to Cropoganda.')
     if user.get('mode') == 'auth0' and user.get('email'):
         return user
     if allow_sample and user.get('mode') == 'sample' and env('FIELDSHIFT_SMS_ALLOW_SAMPLE') == '1':
@@ -266,7 +266,7 @@ def install_sms_routes(app, generate_gemini_reply, default_model, forecast):
 
     @app.post('/api/sms/link')
     def sms_link(req: LinkRequest, request: Request):
-        """Link the signed-in farm to the FieldShift number and sync its location + calendar."""
+        """Link the signed-in farm to the Cropoganda number and sync its location + calendar."""
         user = _user(request)
         link = read_link()
         if link and link.get('owner') != user['sub'] and not req.calendar and not req.location:
@@ -291,7 +291,7 @@ def install_sms_routes(app, generate_gemini_reply, default_model, forecast):
     @app.post('/api/sms/test')
     def sms_test(request: Request):
         _user(request, allow_sample=True)
-        return {'results': send_to_farmers('FieldShift test: text messages are working!\n' + HELP_TEXT)}
+        return {'results': send_to_farmers('Cropoganda test: text messages are working!\n' + HELP_TEXT)}
 
     @app.post('/api/sms/demo-alert')
     def sms_demo_alert(request: Request):
@@ -334,7 +334,7 @@ def install_sms_routes(app, generate_gemini_reply, default_model, forecast):
 
     @app.post('/api/twilio/sms')
     async def twilio_incoming(request: Request):
-        """Twilio calls this when someone texts the FieldShift number."""
+        """Twilio calls this when someone texts the Cropoganda number."""
         raw = await request.body()
         if len(raw) > 20000:
             raise HTTPException(413, 'Too large')
@@ -348,7 +348,7 @@ def install_sms_routes(app, generate_gemini_reply, default_model, forecast):
 
         sender, body = form.get('From', ''), (form.get('Body', '') or '').strip()
         if sender not in farmer_numbers():
-            return twiml('This number is not registered with FieldShift.')
+            return twiml('This number is not registered with Cropoganda.')
         word = body.upper()
         if word in ('STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT', 'START', 'UNSTOP'):
             return twiml(None)          # Twilio handles opt-out keywords
@@ -357,7 +357,7 @@ def install_sms_routes(app, generate_gemini_reply, default_model, forecast):
 
         link = read_link()
         if not link:
-            return twiml('FieldShift: no farm is linked yet. Sign in to the dashboard and press "Link my farm to texts".')
+            return twiml('Cropoganda: no farm is linked yet. Sign in to the dashboard and press "Link my farm to texts".')
         snap = read_snapshot(link['owner'])
         latest = (snap or {}).get('latest')
         loc = link.get('location') or {}
@@ -384,7 +384,7 @@ def ask_fieldy(question, latest, link, generate_gemini_reply, default_model, for
             weather = []
     context = {'location': loc, 'latest_esp32_reading': latest, 'forecast_next_days': weather,
                'upcoming_calendar_tasks': upcoming, 'today': farm_today().isoformat()}
-    prompt = ("You are Fieldy, FieldShift's farming assistant, replying by TEXT MESSAGE. "
+    prompt = ("You are Fieldy, Cropoganda's farming assistant, replying by TEXT MESSAGE. "
               'Plain text only, no markdown or bullet symbols, at most 600 characters. '
               'Be practical and cautious; use only the data below, never invent weather warnings, '
               'soil chemistry or yields, and say so if data is missing. '

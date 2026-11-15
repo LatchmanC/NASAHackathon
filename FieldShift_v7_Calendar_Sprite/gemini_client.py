@@ -1,4 +1,4 @@
-"""Shared Gemini client settings for FieldShift.
+"""Shared Gemini client settings for Cropoganda.
 
 Uses the same Google GenAI SDK, model family, and timeout pattern as the
 standalone connection test. The key is never written to a file by this module.
