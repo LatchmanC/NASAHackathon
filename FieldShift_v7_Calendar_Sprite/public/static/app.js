@@ -245,7 +245,7 @@ async function loadNasaMeasurements(){try{const data=await api('/api/nasa?mode=a
 async function loadLocalDays(){try{const d=await api('/api/charts',{timeout:20000});state.localDays=d.local_days||{};renderNASAChart();}catch(e){state.localDays={};}}
 function renderNASA(note=''){const n=state.nasa,rows=n?.rows||[];if(!rows.length){$('#nasa-source').textContent='No daily NASA records loaded. Click Download latest NASA data. This requires internet.';$('#nasa-metrics').innerHTML='<div class="empty-card">No regional data loaded.</div>';$('#nasa-table tbody').innerHTML='<tr><td colspan="10">No NASA observations loaded.</td></tr>';$('#nasa-chart').innerHTML='';return;}
   const rec=[...rows].reverse();const latest=rec[0]||{};const status=n.is_real_nasa?'REAL NASA POWER REGIONAL DATA':'SYNTHETIC NASA-LIKE DEMONSTRATION — NOT NASA DATA';$('#nasa-source').textContent=`${status} · ${n.period||''} · Downloaded ${localTime(n.fetched_at)}${note?' · '+note:''}`;$('#nasa-date-range').textContent=n.period||'';
-  const cards=[['temperature_c','Daily air temp'],['temperature_max_c','Daily max'],['humidity_pct','Relative humidity'],['precipitation_mm','Daily rain'],['solar_mj_m2_day','Solar radiation'],['wind_2m_ms','Wind 2 m']];$('#nasa-metrics').innerHTML=cards.map(([key,label])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">◉</span></div><div class="metric-value">${fixed(latest[key])}<span class="metric-unit">${html(nasaInfo[key]?.[1]||'')}</span></div><div class="metric-hint">NASA day ${html(latest.date||'—')}</div></article>`).join('');
+  const cards=[['temperature_c','Daily air temp'],['temperature_max_c','Daily max'],['humidity_pct','Relative humidity'],['precipitation_mm','Daily rain'],['solar_mj_m2_day','Solar radiation'],['wind_2m_ms','Wind 2 m']];$('#nasa-metrics').innerHTML=cards.map(([key,label])=>`<article class="metric-card"><div class="metric-top"><span>${html(label)}</span><span class="metric-icon">◉</span></div><div class="metric-value">${fixed(latest[key])}<span class="metric-unit">${html(nasaInfo[key]?.[1]||'')}</span></div><div class="metric-hint">${n.is_real_nasa?'NASA day':'Simulated day'} ${html(latest.date||'—')}</div></article>`).join('');
   const fields=['date','temperature_c','temperature_max_c','temperature_min_c','humidity_pct','pressure_hpa','precipitation_mm','solar_mj_m2_day','wind_2m_ms','soil_wetness_fraction'];$('#nasa-table tbody').innerHTML=rec.slice(0,18).map(r=>'<tr>'+fields.map((key,i)=>`<td>${i===0?html(r.date):fixed(r[key],key==='soil_wetness_fraction'?3:1)}</td>`).join('')+'</tr>').join('');renderNASAChart();}
 function renderNASAChart(){const n=state.nasa,rows=n?.rows||[],key=$('#nasa-variable').value;if(!rows.length)return;const count=Number($('#chart-days').value)||35,shown=rows.slice(-count),dates=shown.map(r=>r.date);const nasaValues=Object.fromEntries(shown.map(r=>[r.date,r[key]]));const ns={values:nasaValues,color:'#527cbb',dashed:true};const series=[ns];let legend=n?.is_real_nasa?'<span><b class="nasa"></b> NASA POWER daily regional data</span>':'<span><b class="nasa"></b> SIMULATED regional climate (demo)</span>',note=n?.is_real_nasa?'Regional estimates at NASA POWER grid scale. Values may lag current date.':'SIMULATED DEMO climate — no NASA observations were retrieved.';
   if(comparable[key]){const lv={};for(const d of dates){let x=state.localDays[d];if(x&&x[comparable[key]]!=null)lv[d]=x[comparable[key]];}if(Object.keys(lv).length){series.unshift({values:lv,color:'#24714f'});legend='<span><b></b> '+(farmCloudMode==='sample'?'Simulated ESP32 values':'Local ESP32 daily average')+'</span>'+legend;note+=' Local values are averaged by UTC day.';}}
@@ -406,6 +406,13 @@ function showFieldyCalendarProposal(raw){
 }
 async function loadGoogleCalendarStatus(){
   const badge=$('#google-calendar-badge'),button=$('#connect-google-calendar');
+  if(farmCloudMode==='sample'){
+    badge.textContent='Demo only';
+    $('#google-calendar-status').textContent='Google Calendar is unavailable in demo mode. Add simulated farm tasks below.';
+    button.disabled=true;button.textContent='Unavailable in demo';
+    $('#disconnect-google-calendar').classList.add('hidden');
+    return;
+  }
   try{
     const r=await api('/api/google/status');
     badge.textContent=r.connected?'● Connected':r.configured?'Not connected':'Setup required';
@@ -457,7 +464,7 @@ async function askGemini(){
   }catch(e){
     fieldyRenderConversation(null,'Could not answer yet: '+e.message+' — your question is still in the text box.');
     showToast(e.message,true);
-  }finally{btn.disabled=false;btn.textContent='✦ Ask Fieldy for advice';}
+  }finally{btn.disabled=false;btn.textContent=farmCloudMode==='sample'?'✦ Ask demo Fieldy':'✦ Ask Fieldy for advice';}
 }
 async function loadGeminiStatus(){
   try{
@@ -627,8 +634,8 @@ async function loadArchiveDates(){
       select.add(new Option(label+' · '+day,day));
     }
     if((data.dates||[]).includes(previous))select.value=previous;
-    status.textContent=data.dates?.length?'Choose a saved date, then a timestamp.':
-      'No historical ESP32 data yet. Only real uploaded readings will appear here.';
+    status.textContent=data.dates?.length?(data.demo?'SIMULATED DEMO archive · ':'')+'Choose a date, then an example timestamp.':
+      (data.demo?'No simulated readings available.':'No historical ESP32 data yet. Only real uploaded readings will appear here.');
     await loadArchiveTimes();
   }catch(e){status.textContent='History unavailable: '+e.message;}
 }
@@ -643,8 +650,8 @@ async function loadArchiveTimes(){
       select.add(option);
     }
     $('#archive-message').textContent=data.snapshots.length?
-      data.snapshots.length+' saved timestamp(s) found on '+day+' (Eastern Time).':
-      'No archived ESP32 readings on '+day+'.';
+      (data.demo?'SIMULATED DEMO · ':'')+data.snapshots.length+' example timestamp(s) on '+day+'.':
+      (data.demo?'No example readings for this date.':'No archived ESP32 readings on '+day+'.');
   }catch(e){
     select.replaceChildren(new Option('Saved times unavailable',''));
     $('#archive-message').textContent='Unable to load saved times: '+e.message;
@@ -661,12 +668,13 @@ async function loadArchiveEntry(){
     const d=await api('/api/history/entry?'+query,{timeout:22000});
     const reading=d.sensor||{};
     $('#archive-sensor-time').textContent='Device '+(reading.device_id||'—')+' · '+easternTime(reading.recorded_at)+
-      ' · '+(d.sensor_access==='shared'?'Shared read-only ESP32':'Account ESP32');
+      ' · '+(d.demo?'SIMULATED sensor':d.sensor_access==='shared'?'Shared read-only ESP32':'Account ESP32');
     $('#archive-sensor-cards').innerHTML=metricInfo.map(([key,label,icon])=>
       '<article class="metric-card"><div class="metric-top"><span>'+html(label)+
       '</span><span class="metric-icon">'+icon+'</span></div><div class="metric-value">'+fixed(reading[key])+
-      '<span class="metric-unit">'+html(units[key])+'</span></div><div class="metric-hint">Saved ESP32 reading</div></article>').join('');
-    $('#archive-message').textContent='Loaded authentic saved ESP32 reading for '+day+'.';
+      '<span class="metric-unit">'+html(units[key])+'</span></div><div class="metric-hint">'+(d.demo?'SIMULATED DEMO reading':'Saved ESP32 reading')+'</div></article>').join('');
+    $('#archive-message').textContent=d.demo?'SIMULATED DEMO history · Not authentic ESP32 or TigerData records.':
+      'Loaded authentic saved ESP32 reading for '+day+'.';
   }catch(e){showToast('Unable to load history: '+e.message,true);}
 }
 function attach(){
@@ -808,13 +816,24 @@ async function loadAccount(){
       fieldyLoadHistory();
       $('#sensor-view').value=saved('sensor_view','auto');
       farmCloudMode=data.user?.mode==='sample'?'sample':'loading';
-      $('#device-pair-panel').classList.toggle('hidden',data.user?.mode==='sample');
-      if(data.user?.mode==='sample'){
-        if(!saved('location'))persist('location',{mode:'coords',label:'Test Farm — San Diego, California',latitude:32.7157,longitude:-117.1611,resolution:'sample city-center coordinates'});
-        if(!saved('calendar'))persist('calendar',[{id:'demo-inspection',date:'2026-11-18',kind:'inspection',crop:'Corn',note:'Check irrigation and inspect sample field'},{id:'demo-watering',date:'2026-11-21',kind:'watering',crop:'Tomato',note:'Check soil before watering'}]);
+      const demo=farmCloudMode==='sample';
+      $('#demo-mode-banner').classList.toggle('hidden',!demo);
+      $('#device-pair-panel').classList.toggle('hidden',demo);
+      if(demo){
+        if(!saved('location'))await persist('location',{mode:'coords',label:'Test Farm — San Diego, California',latitude:32.7157,longitude:-117.1611,resolution:'sample city-center coordinates'});
+        if(!saved('plan'))await persist('plan',await api('/api/plan'));
+        if(!saved('calendar')){
+          const day=delta=>{const d=new Date();d.setDate(d.getDate()+delta);return dateISO(d.getFullYear(),d.getMonth(),d.getDate());};
+          await persist('calendar',[
+            {id:'demo-inspection',date:day(2),kind:'inspection',crop:'Corn',note:'SIMULATED: Inspect mock irrigation and plant health.'},
+            {id:'demo-watering',date:day(4),kind:'watering',crop:'Tomato',note:'SIMULATED: Check pretend soil moisture before watering.'},
+            {id:'demo-harvest',date:day(9),kind:'harvest',crop:'Potato',note:'SIMULATED: Example harvest preparation.'}
+          ]);
+        }
+        $('#fetch-nasa').textContent='Refresh simulated climate';
       }
       $('#farm-cloud-refresh').classList.toggle('hidden',farmCloudMode==='sample');
-      if(farmCloudMode==='sample')cloudNotice('Sample mode · Farm data remains in this browser.');
+      if(demo)cloudNotice('SIMULATED DEMO · Farm data stays in this browser; no TigerData access.');
       else await loadFarmCloud();
       account.textContent='Signed in: '+(data.user?.name||data.user?.email||'Farmer')+' · ';
       const link=document.createElement('a');link.href='/auth/logout';link.textContent='Sign out';account.appendChild(link);
@@ -825,7 +844,15 @@ attach();
 // ---------- Text alerts (Twilio) ----------
 function smsPayload(){return {location:currentLocation(),calendar:saved('calendar',[])};}
 function smsResultText(r){const res=r.results||[];if(!res.length)return r.message||'Nothing to send.';const ok=res.filter(x=>x.sent).length;return ok===res.length?`Sent to ${res.map(x=>x.to).join(', ')}.`:'Not sent: '+(res.find(x=>!x.sent)?.error||'unknown error');}
-async function loadSmsStatus(){try{const s=await api('/api/sms/status');state.sms=s;
+async function loadSmsStatus(){
+  if(farmCloudMode==='sample'){
+    state.sms=null;
+    $('#sms-badge').textContent='Demo only';
+    $('#sms-status').textContent='SIMULATED DEMO · Text alerts and Twilio messaging are disabled. No SMS will be sent.';
+    for(const id of ['#sms-link','#sms-test','#sms-alert','#sms-remind'])$(id).disabled=true;
+    return;
+  }
+  try{const s=await api('/api/sms/status');state.sms=s;
   $('#sms-badge').textContent=!s.configured?'Not set up':s.linked_to_me?'● Linked':s.linked?'Linked to another account':'Not linked';
   $('#sms-status').textContent=!s.configured?'Twilio is not configured on the server yet (see TWILIO_SETUP.md).':
     `Texts go to ${s.recipients.join(', ')||'(no number set)'} from ${s.from_number}. `+(s.linked_to_me?`Your farm is linked; ${s.tasks_synced} calendar task(s) synced for automatic evening reminders.`:'Press "Link my farm to texts" so alerts, STATUS and reminders use your farm.');
@@ -843,7 +870,7 @@ function initSms(){
   loadSmsStatus();
 }
 loadAccount().then(()=>{
-  api('/api/health').then(h=>{state.tigerLive=!!h.tigerdata_configured;}).catch(()=>{});
+  api('/api/health').then(h=>{state.tigerLive=farmCloudMode!=='sample'&&!!h.tigerdata_configured;}).catch(()=>{});
   initLocations();loadLive();loadSharedDeviceStatus();loadPlan();loadCalendar();loadGeminiStatus();loadGoogleCalendarStatus();initSms();
   const pending=saved('fieldy_calendar_pending');
   if(pending)showFieldyCalendarProposal(pending);
