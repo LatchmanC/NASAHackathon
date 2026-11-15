@@ -368,7 +368,7 @@ def install_farm_profile_routes(app):
                 with conn.cursor() as cur:
                     cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))",(key,))
                 section=_read_all(conn,key)["calendar"]
-                tasks=list(section["value"] or [])
+                tasks=[dict(item) for item in (section["value"] or [])]
                 match=next((item for item in tasks if item["id"]==event_id),None)
                 if match is None:
                     raise HTTPException(409,"Google event was created, but the Farm Calendar task was removed during sync. Check Google Calendar.")
