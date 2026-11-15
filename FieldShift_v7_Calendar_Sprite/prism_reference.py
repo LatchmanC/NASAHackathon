@@ -41,6 +41,10 @@ POINTS = [
 ]
 
 
+# Additional 2016 PRISM annual 30-arcsecond raster samples (extracted directly
+# from the uploaded tdmean and solslope GeoTIFFs, separate from 2022 grids).
+PRISM_2016_SUPPLEMENT = {"Queens, NY":[6.03,13.89],"Long Island, NY":[6.28,14.1],"Ithaca, NY":[4.16,12.97],"Rochester, NY":[4.43,13.29],"Buffalo, NY":[5.17,13.48],"Albany, NY":[3.9,13.3],"Syracuse, NY":[4.33,13.1],"Binghamton, NY":[3.54,13.2],"Poughkeepsie, NY":[4.42,13.79],"Watertown, NY":[3.22,13.1],"Plattsburgh, NY":[2.66,12.73],"Hudson, NY":[4.36,13.57],"Saratoga Springs, NY":[3.33,13.56],"Cortland, NY":[4.46,12.81],"Auburn, NY":[4.44,13.1],"Elmira, NY":[3.82,13.27],"Canandaigua, NY":[4.28,13.49],"Geneseo, NY":[4.02,13.14],"Cooperstown, NY":[3.37,13.09],"New York City, NY":[6.34,13.95],"Ames, IA":[6.14,14.28],"Fresno, CA":[7.97,18.55],"Lubbock, TX":[6.22,18.7],"Pullman, WA":[3.13,14.2],"Kearney, NE":[4.55,15.33],"Tifton, GA":[14.05,17.37]}
+
 def _kilometers(a, b, c, d):
     p1, p2 = radians(a), radians(c)
     dp, dl = radians(c-a), radians(d-b)
@@ -75,7 +79,9 @@ def closest_prism_reference(lat, lon):
             "solar_total_mj_m2_day": nearest[8],
             "solar_slope_mj_m2_day": nearest[9]
         },
-        "year_2016": {"min_temp_c": nearest[10], "max_temp_c": nearest[11]},
+        "year_2016": {"min_temp_c": nearest[10], "max_temp_c": nearest[11],
+                     "dewpoint_c": PRISM_2016_SUPPLEMENT.get(nearest[0], [None, None])[0],
+                     "solar_slope_mj_m2_day": PRISM_2016_SUPPLEMENT.get(nearest[0], [None, None])[1]},
         "message": "Archived modeled climate at the named reference coordinate, not at your farm. The 2016 data are a separate finer-resolution grid. Not a forecast or 30-year climate normal.",
         "reference_url": "https://prism.oregonstate.edu/explorer/"
     }
