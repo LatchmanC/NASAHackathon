@@ -1,4 +1,4 @@
-/* Cropaganda Soil & Crop Rotation: real USDA soil survey, optional SMAP, reference guide.
+/* Cropaganda Soil & Crop Rotation: real USDA soil survey and agricultural reference guide.
    This module shares the existing Auth0-backed api(), account-specific saved()/persist(),
    navigation, crop plan, weather and calendar without changing their storage or tokens. */
 'use strict';
@@ -13,7 +13,7 @@ const SOIL_CROPS=[
  {id:'crimson_clover',name:'Crimson Clover + Radish',emoji:'🌺',family:'Legume + brassica mix',type:'Winter cover crop',water:'Cool-season',soil:'Locally adapted fields with suitable establishment window',season:'Fall through spring',before:'After summer cash-crop harvest',after:'Plant following crop after correct cover termination',benefit:'Can provide seasonal living cover, nutrient cycling and rotational diversity.',watch:'Termination timing, frost survival, seed cost and herbicide plant-back restrictions vary.',soilTip:'Mixes need species- and field-specific seeding recommendations.',aliases:['clover','radish','crimson']},
  {id:'cereal_rye',name:'Winter Cereal Rye',emoji:'🌱',family:'Cereal grass',type:'Winter cover crop',water:'Cool-season',soil:'Adaptable to many soils; locally verify',season:'Fall through spring',before:'Following summer grain or vegetable harvest',after:'Cash crop after termination and moisture check',benefit:'Maintains winter soil cover and can reduce erosion exposure and nutrient losses.',watch:'In a dry spring, growth may use water needed by the next crop; termination management matters.',soilTip:'Plan termination before the next crop using local conditions, equipment and herbicide label.',aliases:['cereal rye','winter rye','rye']}
 ];
-const soilState={profile:null,smap:null,context:null,loading:false,loadedKey:null,lastLoaded:0,pane:'overview',crop:'corn',mapZoom:0};
+const soilState={profile:null,context:null,loading:false,loadedKey:null,lastLoaded:0,pane:'overview',crop:'corn',mapZoom:0};
 const soilEl=sel=>document.querySelector(sel);
 function soilTag(text){return html(text??'—');}
 function soilNum(value,digits=1,suffix=''){return value===null||value===undefined||!Number.isFinite(+value)?'—':Number(value).toFixed(digits)+suffix;}
@@ -59,36 +59,6 @@ function soilShowUsda(data){
  soilRenderContext();
  soilRenderRotation();
 }
-function soilGraph(series){
- if(!series.length)return '<div class="soil-chart-empty">No quality-passing SMAP observations for the last 30 days.</div>';
- const width=540,height=172,left=42,right=12,top=13,bottom=27;
- const values=series.map(x=>x.soil_moisture_m3_m3);
- const min=Math.max(0,Math.min(...values)-.035),max=Math.min(1,Math.max(...values)+.035);
- const den=Math.max(.02,max-min);
- const x=i=>left+(i/(Math.max(1,series.length-1)))*(width-left-right);
- const y=v=>top+(1-(v-min)/den)*(height-top-bottom);
- const path=series.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(p.soil_moisture_m3_m3).toFixed(1)).join(' ');
- const first=series[0],last=series[series.length-1];
- return '<svg class="soil-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Quality-passing SMAP surface moisture samples by date">'+
-   [0,.5,1].map(f=>{const v=min+(max-min)*f;const pos=y(v);return '<line x1="'+left+'" y1="'+pos+'" x2="'+(width-right)+'" y2="'+pos+'" stroke="#e5ebe4" />'+
-   '<text x="1" y="'+(pos+4)+'" font-size="11" fill="#849588">'+(v*100).toFixed(0)+'%</text>';}).join('')+
-   '<path d="'+path+'" fill="none" stroke="#2e8658" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'+
-   series.map((p,i)=>'<circle cx="'+x(i)+'" cy="'+y(p.soil_moisture_m3_m3)+'" r="3" fill="#3b9b66"><title>'+p.date+': '+(p.soil_moisture_m3_m3*100).toFixed(1)+'% volumetric</title></circle>').join('')+
-   '<text x="'+left+'" y="'+(height-5)+'" fill="#849588" font-size="10">'+first.date+'</text>'+
-   '<text x="'+(width-right)+'" y="'+(height-5)+'" fill="#849588" font-size="10" text-anchor="end">'+last.date+'</text></svg>'+
-   '<div class="soil-chart-caption"><span>AM overpass · volumetric m³/m³ shown as percentage</span><span>Latest '+last.date+'</span></div>';
-}
-function soilShowSmap(data){
- const latest=data?.status==='ok'?data.latest:null;
- soilEl('#soil-metric-smap').textContent=latest?soilNum(latest.soil_moisture_m3_m3*100,1,'% vol.'):'—';
- soilEl('#soil-metric-smap-date').textContent=latest?'Observed '+latest.date+' · quality checked':data?.status==='setup_required'?'Earth Engine connection not configured':'No satellite reading available';
- soilEl('#soil-smap-state').textContent=data?.message||'No SMAP data available.';
- soilEl('#soil-smap-state').classList.toggle('warn',!latest);
- soilEl('#soil-smap-chart').innerHTML=data?.status==='ok'?soilGraph(data.readings||[]):'<div class="soil-chart-empty">'+soilTag(data?.message||'Satellite sampling unavailable.')+'</div>';
- soilRenderContext();
- soilRenderRotation();
-}
-
 function soilAttrRows(rows){
  return rows.filter(([,v])=>v!==null&&v!==undefined&&v!=='').map(([k,v])=>
   '<div class="soil-attr"><span>'+soilTag(k)+'</span><strong>'+soilTag(v)+'</strong></div>').join('');
@@ -149,13 +119,11 @@ function soilShowContext(data){
 function soilRenderContext(){
  const selected=(saved('plan')?.crops||[]).filter(c=>String(c?.name||'').trim()).slice(0,4);
  const p=soilState.profile?.status==='ok'?soilState.profile.profile:null;
- const m=soilState.smap?.status==='ok'?soilState.smap.latest:null;
  const climate=soilState.context?.climate;
  const land=soilState.context?.land_cover;
  const recentCdl=land?.samples?.find(r=>r.status==='ok');
  const details=[
   p?{title:'Published map unit',description:p.mapunit_name||'USDA map unit'}:{title:'Soil survey',description:'No confirmed USDA map-unit attributes loaded'},
-  m?{title:'SMAP regional context',description:'Last quality-passing surface moisture sample: '+soilNum(m.soil_moisture_m3_m3*100,1,'% volume')+' ('+m.date+')'}:{title:'Satellite moisture',description:'Not yet available; no estimates substituted'},
   climate?.status==='ok'?{title:'Historical regional climate',description:'NASA POWER mean air temperature '+soilNum(climate.annual_mean_air_temp_c,1,' °C')+'; annualized precipitation '+soilNum(climate.annual_equivalent_precip_mm,0,' mm')+'. Not current weather.'}:{title:'Historical regional climate',description:'NASA POWER regional climatology not available'},
   recentCdl?{title:'USDA classified land cover',description:recentCdl.year+' · '+recentCdl.land_cover+' (30 m pixel, not confirmed planted crop).'}:{title:'USDA classified land cover',description:'No verified map-classification response available'}
  ];
@@ -234,8 +202,6 @@ function soilRenderRotation(){
   poorlyDrained?'USDA lists poor drainage for the mapped component; chickpeas are not suggested without site verification.':
   p?'Published USDA survey shows '+(p.drainage_class||'unspecified drainage')+' drainage for the selected component.':
   'No USDA soil survey is loaded; the candidate sequence is general guidance only.',
-  soilState.smap?.latest?'NASA SMAP is regional 9 km surface moisture; do not interpret it as water available to plant roots.':
-  'No quality-passing SMAP values are used for this suggestion.',
   climate?.status==='ok'?'NASA POWER historical regional averages: annual temperature '+soilNum(climate.annual_mean_air_temp_c,1,' °C')+' and annualized precipitation '+soilNum(climate.annual_equivalent_precip_mm,0,' mm')+'. Use local seasonal planting windows; these are not farm forecasts.':'NASA POWER historical climate is currently unavailable; the sequence is reference guidance.',
   'No yield, economic return, nitrogen credit, erosion reduction, or crop-fit percentage is predicted.'
  ];
@@ -258,7 +224,6 @@ async function soilLoad(force=false){
  if(!loc){
   soilEl('#soil-location').textContent='No saved farm location. Open My Farm to select your farm.';
   soilShowUsda({status:'no_location',message:'Select your actual farm location in My Farm to request USDA soil properties.'});
-  soilShowSmap({status:'no_location',message:'SMAP needs a farm coordinate to locate regional satellite observations.'});
   soilShowContext({});
   soilRenderMaps();return;
  }
@@ -269,20 +234,17 @@ async function soilLoad(force=false){
  soilEl('#soil-refresh').disabled=true;
  soilEl('#soil-location').textContent='Saved farm · '+(loc.label||Number(loc.latitude).toFixed(4)+', '+Number(loc.longitude).toFixed(4));
  soilEl('#soil-usda-state').textContent='Querying the USDA Soil Data Mart…';
- soilEl('#soil-smap-state').textContent='Checking NASA SMAP sampling…';
  const qs='latitude='+encodeURIComponent(loc.latitude)+'&longitude='+encodeURIComponent(loc.longitude)+(force?'&refresh=true':'');
  try{
-  const [usda,smap,context]=await Promise.allSettled([api('/api/soil/profile?'+qs,{timeout:52000}),api('/api/soil/smap?'+qs,{timeout:57000}),api('/api/soil/context?'+qs,{timeout:58000})]);
+  const [usda,context]=await Promise.allSettled([api('/api/soil/profile?'+qs,{timeout:52000}),api('/api/soil/context?'+qs,{timeout:58000})]);
   if(soilSavedLocation()&&key!==soilSavedLocation().latitude+','+soilSavedLocation().longitude)return;
   soilState.profile=usda.status==='fulfilled'?usda.value:{status:'unavailable',message:'USDA soil profile request failed. No values were inferred.'};
-  soilState.smap=smap.status==='fulfilled'?smap.value:{status:'unavailable',message:'SMAP request failed. No satellite values were inferred.'};
   soilState.context=context.status==='fulfilled'?context.value:{status:'unavailable',message:'Source-context request failed. No climate or terrain data were inferred.'};
   // Retry failed upstream requests after one minute, not the normal one-hour UI interval.
-  const retrySoon=[soilState.profile,soilState.smap,soilState.context].some(x=>x?.status==='unavailable');
+  const retrySoon=[soilState.profile,soilState.context].some(x=>x?.status==='unavailable');
   soilState.lastLoaded=Date.now()-(retrySoon?3540000:0);
   soilEl('#soil-source-time').textContent='Source check · '+new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
   soilShowUsda(soilState.profile);
-  soilShowSmap(soilState.smap);
   soilShowContext(soilState.context);
   soilRenderMaps();
  }finally{soilState.loading=false;soilEl('#soil-refresh').disabled=false;}
@@ -321,7 +283,7 @@ persist=function(key,value){
  soilOldPersist(key,value);
  if(key==='plan'&&state.tab==='soil'){soilPopulateCrops();soilRenderContext();soilRenderRotation();}
  if(key==='location'){
-  soilState.loadedKey=null;soilState.profile=null;soilState.smap=null;soilState.context=null;soilState.lastLoaded=0;
+  soilState.loadedKey=null;soilState.profile=null;soilState.context=null;soilState.lastLoaded=0;
   if(state.tab==='soil')soilLoad(true);
  }
 };
