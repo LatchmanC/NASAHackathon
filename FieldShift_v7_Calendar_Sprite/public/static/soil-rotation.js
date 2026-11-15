@@ -209,14 +209,16 @@ function soilRenderRotation(){
  const savedPlans=saved('rotation_scenarios',[]);
  soilEl('#soil-rotation-saved').textContent=Array.isArray(savedPlans)&&savedPlans.length?'Saved rotation drafts in this browser: '+savedPlans.length:'No rotation drafts saved yet.';
 }
-function soilSaveRotation(){
+async function soilSaveRotation(){
  if(!soilSuggestedPlan)return;
- if(!confirm('Save this rotation as a draft in your browser? This does not create calendar events or change your farm plan.'))return;
+ if(!confirm('Save this rotation as a draft to your farm account? This does not create calendar events or change your farm plan.'))return;
  const previous=saved('rotation_scenarios',[]);
  const drafts=Array.isArray(previous)?previous:[];
  if(drafts.length>=30){showToast('Up to 30 saved rotation drafts are supported.',true);return;}
- persist('rotation_scenarios',[...drafts,{...soilSuggestedPlan,id:crypto.randomUUID()}]);
- soilRenderRotation();showToast('Rotation draft saved. Farm calendar was not changed.');
+ try{
+  await persist('rotation_scenarios',[...drafts,{...soilSuggestedPlan,id:crypto.randomUUID()}]);
+  soilRenderRotation();showToast('Rotation draft saved. Farm calendar was not changed.');
+ }catch(e){showToast('Rotation draft was not saved: '+e.message,true);}
 }
 async function soilLoad(force=false){
  if(soilState.loading)return;
@@ -279,12 +281,13 @@ const soilAccountObserver=new MutationObserver(()=>{
 soilAccountObserver.observe(soilEl('#account-box'),{childList:true,subtree:true});
 // Farm plan/location changes already run through the shared persist() wrapper.
 const soilOldPersist=persist;
-persist=function(key,value){
- soilOldPersist(key,value);
+persist=async function(key,value){
+ const result=await soilOldPersist(key,value);
  if(key==='plan'&&state.tab==='soil'){soilPopulateCrops();soilRenderContext();soilRenderRotation();}
  if(key==='location'){
   soilState.loadedKey=null;soilState.profile=null;soilState.context=null;soilState.lastLoaded=0;
   if(state.tab==='soil')soilLoad(true);
  }
+ return result;
 };
 if(state.tab==='soil')soilInit();
