@@ -320,9 +320,15 @@ def _query_smap(lat,lon):
             "resolution_km":9,"units":"m³/m³","dataset":SMAP_COLLECTION}
 
 
+from demo_data import sample_session, soil_profile as synthetic_soil_profile
+
 def install_soil_rotation_routes(app):
     @app.get("/api/soil/profile")
     def soil_profile(request:Request,latitude:float,longitude:float,refresh:bool=False):
+        # Public demo must not read any real account or query USDA/TigerData.
+        if sample_session(request):
+            lat,lon=_coords(latitude,longitude)
+            return synthetic_soil_profile(lat,lon)
         owner=_owner(request)
         lat,lon=_coords(latitude,longitude)
         if not (24<=lat<=72 and -180<=lon<=-60):
@@ -346,6 +352,9 @@ def install_soil_rotation_routes(app):
 
     @app.get("/api/soil/smap")
     def soil_smap(request:Request,latitude:float,longitude:float,refresh:bool=False):
+        if sample_session(request):
+            return {"status":"unavailable","demo":True,"readings":[],
+                    "source":"SIMULATED DEMO","message":"No satellite SMAP data in demo mode."}
         owner=_owner(request)
         lat,lon=_coords(latitude,longitude)
         extra={"source":SMAP_SOURCE,"location":{"latitude":lat,"longitude":lon},
