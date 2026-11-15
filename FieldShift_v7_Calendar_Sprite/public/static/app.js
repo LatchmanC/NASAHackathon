@@ -202,7 +202,7 @@ function dismissFieldyCalendar(){
   showToast('Calendar proposal dismissed; nothing was added.');
 }
 function showFieldyCalendarProposal(raw){
-  if(!raw||!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw.date)||!calendarKinds[raw.kind])return;
+  if(!raw||!/^\d{4}-\d{2}-\d{2}$/.test(raw.date)||!calendarKinds[raw.kind])return;
   pendingFieldyCalendar={date:raw.date,kind:raw.kind,crop:String(raw.crop||'').slice(0,70),
     note:String(raw.note||'').slice(0,240),request_id:raw.request_id||crypto.randomUUID().replaceAll('-','')};
   persist('fieldy_calendar_pending',pendingFieldyCalendar);
@@ -229,10 +229,10 @@ async function loadGoogleCalendarStatus(){
 }
 async function askGemini(){
   const typed=$('#farm-question').value.trim();
-  if(pendingFieldyCalendar&&/^(yes|yeah|yep|sure|confirm|add it|yes please|do it)[.!\\s]*$/i.test(typed)){
+  if(pendingFieldyCalendar&&/^(yes|yeah|yep|sure|confirm|add it|yes please|do it)[.!\s]*$/i.test(typed)){
     await confirmFieldyCalendar();return;
   }
-  if(pendingFieldyCalendar&&/^(no|nope|cancel|not now)[.!\\s]*$/i.test(typed)){
+  if(pendingFieldyCalendar&&/^(no|nope|cancel|not now)[.!\s]*$/i.test(typed)){
     dismissFieldyCalendar();return;
   }
   const btn=$('#ask-gemini');btn.disabled=true;btn.textContent='Fieldy is thinking…';
