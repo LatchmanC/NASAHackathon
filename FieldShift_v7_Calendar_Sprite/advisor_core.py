@@ -9,6 +9,7 @@ from datetime import datetime, timezone, date, timedelta
 from fastapi import HTTPException
 from sensor_store import age_seconds
 from device_api import resolve_device_data
+from soil_rotation_api import _cache_get, SOIL_TTL, SMAP_TTL
 
 def answer_question(req,request,validate_plan,forecast,official_alerts,
                     fetch_nasa_daily,generate_gemini_reply,default_model,valid_lat_lon):
@@ -55,6 +56,23 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
     with ThreadPoolExecutor(max_workers=3) as pool:
         wa=pool.submit(weather_fetch);al=pool.submit(alerts_fetch);na=pool.submit(nasa_fetch)
         weather=wa.result();alerts=al.result();nasa=na.result()
+    # Read only account-owned, verified and cached source results.
+    # No browser-submitted guesses are treated as USDA or SMAP measurements.
+    usda_survey={'source':'USDA NRCS Soil Data Access','status':'not yet available'}
+    smap_observations={'source':'NASA SMAP 9 km satellite grid','status':'not yet available'}
+    try:
+        key_lat,key_lon=round(float(lat),5),round(float(lon),5)
+        soil_cache=_cache_get(user['sub'],key_lat,key_lon,'usda',SOIL_TTL)
+        smap_cache=_cache_get(user['sub'],key_lat,key_lon,'smap',SMAP_TTL)
+        if soil_cache and soil_cache.get('status')=='ok':
+            usda_survey={'source':'USDA NRCS soil map unit survey (not a soil test)',
+                         'status':'available','profile':soil_cache.get('profile')}
+        if smap_cache and smap_cache.get('status')=='ok':
+            smap_observations={'source':'NASA SMAP enhanced L3 AM quality-passing 9 km regional soil moisture',
+                               'status':'available','latest':smap_cache.get('latest'),
+                               'recent':(smap_cache.get('readings') or [])[-5:]}
+    except Exception:
+        pass
     sensor_status=('recent' if age is not None and age<900 else
                    'stale' if latest else 'not connected')
     context={
@@ -70,6 +88,8 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
         'seven_day_forecast':{'source':'Open-Meteo live weather forecast' if weather else 'unavailable','days':weather},
         'official_weather_alerts':alerts,
         'nasa_historical_weather':nasa,
+        'usda_soil_survey':usda_survey,
+        'smap_regional_surface_moisture':smap_observations,
         'as_of_utc':datetime.now(timezone.utc).isoformat()
     }
     instruction=(
@@ -78,7 +98,9 @@ def answer_question(req,request,validate_plan,forecast,official_alerts,
         'The user might ask about crop layout, harvest dates, soil chemistry, water needs, yield estimates, '
         'weather effects, comparisons, troubleshooting, or math: answer that specific question. '
         'Use available crop sizes, varieties, stages, dates, recent authenticated ESP32 readings and timestamps, '
-        'calendar tasks, NASA POWER regional history, live Open-Meteo forecasts, and official alerts where relevant. '
+        'calendar tasks, USDA survey components, NASA SMAP quality-passing regional soil moisture when available, '
+        'NASA POWER regional history, live Open-Meteo forecasts, and official alerts where relevant. '
+        'Never treat a 9 km satellite grid as an individual soil probe, or USDA survey pH as a soil test. '
         'If information is incomplete, make a well-reasoned best guess using stated assumptions and general '
         'agronomic knowledge; give ranges or uncertainty instead of declining to estimate. '
         'Clearly distinguish measured data, forecasts, and estimates. Never invent live measurements, '

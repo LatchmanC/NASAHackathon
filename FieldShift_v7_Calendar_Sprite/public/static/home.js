@@ -218,7 +218,7 @@ function organizePanels(){
  if(calendar&&sms)calendar.appendChild(sms);
  const banner=$('.preview-banner');
  if(banner)$('#tab-crops').appendChild(banner);
- mountCropReferenceGuide();
+ // The detailed crop reference now lives in Soil & Rotation.
 }
 organizePanels();
 const previousTab=tab;
