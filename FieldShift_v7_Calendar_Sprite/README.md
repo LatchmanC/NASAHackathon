@@ -1,3 +1,25 @@
+## Live Auth0 setup for cropaganda.garden
+
+The FieldShift production website uses **https://cropaganda.garden** as its canonical host.
+
+In your Auth0 **Regular Web Application**, enter:
+
+| Auth0 setting | Exact URL |
+| --- | --- |
+| Allowed Callback URLs | `https://cropaganda.garden/auth/callback` |
+| Allowed Logout URLs | `https://cropaganda.garden/` |
+| Allowed Web Origins | `https://cropaganda.garden` |
+
+The project already has `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, and `GEMINI_API_KEY` in Vercel; do **not** copy them into code or send them in chat. `APP_BASE_URL=https://cropaganda.garden` is configured for Production.
+
+For server-side browser sessions, use `SESSION_SECRET` or the previously configured `AUTH0_SECRET` (32+ characters). Set `AUTH0_ALLOWED_EMAILS` to the *verified* email address(es) of approved farmers (comma-separated). Once the Auth0 callback URLs and approved accounts are set, add `AUTH0_ENABLED=1` and `FIELDSHIFT_DEMO=0` for Production and redeploy.
+
+An Auth0 API Audience can be added as `AUTH0_AUDIENCE` if the application requires an access token for a separate protected API; it is not required to sign in to this server-rendered website. Auth0 Management API client credentials are unrelated to ordinary farmer sign-in.
+
+**Important:** This preview does not yet load farm records from a cloud database: a farmer's plan and calendar are stored in that browser's local storage, partitioned by Auth0 user ID. They do not securely synchronize across devices. A multi-farm rollout requires server-side TigerData storage and farm-level access controls.
+
+---
+
 # FieldShift v9 — Vercel-ready Preview
 
 This edition migrates the FieldShift v8 three-tab dashboard to **stateless FastAPI** for Vercel's Python runtime. It keeps the original responsive layout and Fieldy mascot, but changes Fieldy's output to compact cards rather than raw technical essays.

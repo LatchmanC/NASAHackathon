@@ -30,10 +30,13 @@ def settings():
         raise RuntimeError('AUTH0_DOMAIN must be a bare domain such as tenant.us.auth0.com')
     client_id = os.environ.get('AUTH0_CLIENT_ID', '').strip()
     client_secret = os.environ.get('AUTH0_CLIENT_SECRET', '').strip()
-    session_secret = os.environ.get('SESSION_SECRET', '').strip()
+    # Existing Auth0 SDK setups often use AUTH0_SECRET for cookie signing.
+    # Support either name without accessing or copying secret values.
+    session_secret = (os.environ.get('SESSION_SECRET', '').strip()
+                      or os.environ.get('AUTH0_SECRET', '').strip())
     allowed = {part.strip().casefold() for part in os.environ.get('AUTH0_ALLOWED_EMAILS','').split(',') if part.strip()}
     if not client_id or not client_secret or len(session_secret) < 32:
-        raise RuntimeError('Configure AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET and SESSION_SECRET (>=32 chars)')
+        raise RuntimeError('Configure AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET and SESSION_SECRET or AUTH0_SECRET (>=32 chars)')
     if not allowed:
         raise RuntimeError('Set AUTH0_ALLOWED_EMAILS for this single-farm prototype.')
     parsed = urlsplit(base)
